@@ -1,6 +1,7 @@
 """API routes for Second Brain dashboard."""
 
 from datetime import datetime, timezone
+import os
 from uuid import UUID
 
 import structlog
@@ -350,6 +351,7 @@ async def run_eval(request: Request, mode: str = Form(default="all")) -> HTMLRes
         cwd=str(project_root),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
 
     return HTMLResponse(
@@ -366,10 +368,11 @@ async def eval_status(request: Request) -> HTMLResponse:
 
     lock_file = Path(__file__).resolve().parent.parent.parent / ".eval_running"
     if lock_file.exists():
+        progress = lock_file.read_text().strip() or "Starting..."
         return HTMLResponse(
             '<div id="eval-status" class="eval-status running"'
             ' hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">'
-            '⏳ Evaluation running... this may take a few minutes.</div>'
+            f'\u23f3 {progress}</div>'
         )
     else:
         return HTMLResponse(

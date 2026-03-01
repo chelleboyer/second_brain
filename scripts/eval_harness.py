@@ -9,9 +9,16 @@ View results at http://localhost:8000/eval
 
 import asyncio
 import json
+import os
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Fix Windows console encoding for emoji output
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
 
 import httpx
 import structlog
@@ -20,6 +27,15 @@ log = structlog.get_logger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_PATH = PROJECT_ROOT / "eval_results.json"
+PROGRESS_FILE = PROJECT_ROOT / ".eval_running"
+
+
+def _update_progress(msg: str) -> None:
+    """Write current progress to the lock file for UI polling."""
+    try:
+        PROGRESS_FILE.write_text(msg)
+    except OSError:
+        pass
 
 # ── Labeled test dataset ─────────────────────────────────────────
 # Each sample: (text, expected_type, description)
@@ -239,6 +255,7 @@ async def evaluate_classification_model(
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         for i, sample in enumerate(EVAL_SAMPLES):
+            _update_progress(f"Classification: {model.split('/')[-1]} — sample {i+1}/{len(EVAL_SAMPLES)}")
             prompt = CLASSIFICATION_PROMPT.format(text=sample["text"])
             payload = {
                 "model": model,
@@ -350,6 +367,7 @@ async def evaluate_embedding_model(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for i, sample in enumerate(samples):
+            _update_progress(f"Embedding: {model.split('/')[-1]} — sample {i+1}/{len(samples)}")
             payload = {"inputs": sample["text"][:500]}
 
             start = time.perf_counter()
@@ -423,7 +441,8 @@ async def run_full_eval(
     all_results: list[dict] = []
 
     if not embedding_only:
-        for model in CLASSIFICATION_MODELS:
+        for mi, model in enumerate(CLASSIFICATION_MODELS):
+            _update_progress(f"Classification model {mi+1}/{len(CLASSIFICATION_MODELS)}: {model.split('/')[-1]}")
             try:
                 evaluation = await evaluate_classification_model(model, api_token)
                 all_results.append(evaluation.to_dict())
@@ -431,7 +450,8 @@ async def run_full_eval(
                 print(f"  FATAL error evaluating {model}: {e}")
 
     if not classification_only:
-        for model in EMBEDDING_MODELS:
+        for mi, model in enumerate(EMBEDDING_MODELS):
+            _update_progress(f"Embedding model {mi+1}/{len(EMBEDDING_MODELS)}: {model.split('/')[-1]}")
             try:
                 evaluation = await evaluate_embedding_model(model, api_token)
                 all_results.append(evaluation.to_dict())
