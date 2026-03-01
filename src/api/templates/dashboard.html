@@ -87,7 +87,14 @@
     <!-- Quick links -->
     <h2 style="margin-top: 1.5rem;">🛠 Tools</h2>
     <div class="tools-grid">
+        <a href="/insights" class="tool-link">📈 Insights & Reports</a>
         <a href="/eval" class="tool-link">📊 Eval Harness</a>
     </div>
+
+    <!-- Unclassified alert (lazy-loaded) -->
+    <div hx-get="/insights/unclassified-count"
+         hx-trigger="load"
+         hx-swap="outerHTML"
+         style="margin-top:0.8rem;"></div>
 </div>
 {% endblock %}

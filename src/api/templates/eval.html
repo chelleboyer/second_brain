@@ -32,8 +32,8 @@
 
     {% if eval_running %}
         <div id="eval-status" class="eval-status running"
-             hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">
-            ⏳ Evaluation running... this may take a few minutes.
+             hx-get="/eval/status" hx-trigger="every 2s" hx-swap="outerHTML">
+            Evaluation running...
         </div>
     {% else %}
         <div id="eval-status"></div>

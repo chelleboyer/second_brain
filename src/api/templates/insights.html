@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{# ── Full-width health banner ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem;">
+        <div>
+            <h2 style="margin-bottom:0.2rem;">📊 Brain Health Report</h2>
+            <span style="font-size:0.82rem; color:var(--text-muted);">
+                <a href="/" style="color:var(--accent); text-decoration:none;">← Dashboard</a>
+                &nbsp;·&nbsp; All active entries &nbsp;·&nbsp; {{ total_all }} total
+            </span>
+        </div>
+        <div style="text-align:right;">
+            {% set rate_pct = (classification_rate * 100) | round(1) %}
+            {% if classification_rate >= 0.9 %}
+                <span style="font-size:1.6rem; font-weight:700; color:var(--green);">{{ rate_pct }}%</span>
+            {% elif classification_rate >= 0.7 %}
+                <span style="font-size:1.6rem; font-weight:700; color:var(--gold);">{{ rate_pct }}%</span>
+            {% else %}
+                <span style="font-size:1.6rem; font-weight:700; color:var(--red);">{{ rate_pct }}%</span>
+            {% endif %}
+            <div style="font-size:0.78rem; color:var(--text-muted);">Classification Rate</div>
+        </div>
+    </div>
+
+    {# Progress bar #}
+    <div class="eval-bar" style="height:8px; margin-top:0.8rem; margin-bottom:0.5rem;">
+        <div class="eval-bar-fill" style="width:{{ (classification_rate * 100) | round(1) }}%;
+            background: {% if classification_rate >= 0.9 %}var(--green){% elif classification_rate >= 0.7 %}var(--gold){% else %}var(--red){% endif %};"></div>
+    </div>
+
+    {# Stat pills #}
+    <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.4rem;">
+        <span class="digest-item chip-green" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            ✅ {{ classified_count }} classified
+        </span>
+        {% if unclassified_count > 0 %}
+        <span class="digest-item chip-red" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            ❓ {{ unclassified_count }} need review
+        </span>
+        {% else %}
+        <span class="digest-item chip-teal" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            ✨ No unclassified entries
+        </span>
+        {% endif %}
+        {% if risks | length > 0 %}
+        <span class="digest-item chip-red" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            ⚠️ {{ risks | length }} active risks
+        </span>
+        {% endif %}
+        {% if tasks | length > 0 %}
+        <span class="digest-item chip-green" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            ✅ {{ tasks | length }} tasks in backlog
+        </span>
+        {% endif %}
+        <span class="digest-item" style="font-size:0.8rem; padding:0.2rem 0.7rem;">
+            {{ counts.archived }} archived
+        </span>
+    </div>
+
+    {# Activity sparkline - last 7 days #}
+    {% if activity %}
+    <div style="margin-top:1rem;">
+        <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:0.3rem;">7-Day Activity</div>
+        <div style="display:flex; align-items:flex-end; gap:3px; height:32px;">
+            {% set max_count = activity | map(attribute='count') | max %}
+            {% for day_data in activity %}
+                {% set bar_h = ((day_data.count / max_count) * 28) | round | int if max_count > 0 else 2 %}
+                <div title="{{ day_data.day }}: {{ day_data.count }} entries"
+                     style="flex:1; height:{{ bar_h }}px; min-height:3px; background:var(--accent);
+                            border-radius:2px 2px 0 0; opacity:0.7; cursor:default;"></div>
+            {% endfor %}
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-muted); margin-top:2px;">
+            <span>{{ activity[0].day if activity else '' }}</span>
+            <span>{{ activity[-1].day if activity else '' }}</span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# ── Left column ── #}
+<div class="panel" style="overflow:hidden;">
+
+    {# ── Unclassified Queue ── #}
+    <h2>
+        ❓ Unclassified Queue
+        {% if unclassified %}
+            <span class="count-badge" style="color:var(--red);">{{ unclassified | length }} need action</span>
+        {% else %}
+            <span class="count-badge" style="color:var(--green);">All clear</span>
+        {% endif %}
+    </h2>
+
+    {% if unclassified %}
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.8rem;">
+        These entries were captured but the classifier could not determine a type. Use the dropdown to classify each one.
+    </p>
+    <div id="unclassified-list">
+        {% for entry in unclassified %}
+        <div class="entry-card" id="entry-{{ entry.id }}" style="border-left:3px solid var(--red);">
+            <div class="entry-header">
+                <div>
+                    <a href="/entry/{{ entry.id }}" class="entry-title" title="View details">{{ entry.title }}</a>
+                </div>
+                <div class="entry-actions">
+                    <select class="reclassify-select"
+                            hx-post="/entry/{{ entry.id }}/reclassify"
+                            hx-target="#entry-{{ entry.id }}"
+                            hx-swap="outerHTML"
+                            name="new_type"
+                            title="Classify this entry"
+                            style="border-color:var(--gold);">
+                        <option value="" disabled selected>Classify…</option>
+                        {% for t in classifiable_types %}
+                            {% set td = type_display.get(t) %}
+                            <option value="{{ t.value }}">{{ td.emoji }} {{ td.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="action-btn action-danger"
+                            hx-post="/entry/{{ entry.id }}/archive"
+                            hx-target="#entry-{{ entry.id }}"
+                            hx-swap="outerHTML"
+                            title="Archive">📦</button>
+                </div>
+            </div>
+            <div class="entry-summary">{{ entry.summary }}</div>
+            <div class="entry-meta">
+                {{ entry.author_name }} · {{ relative_time(entry.created_at) }}
+                {% if entry.source == "manual" %} · ✍️ Manual{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="capture-prompt" style="padding:1.5rem;">
+        <p style="color:var(--green);">✨ All entries are classified.</p>
+    </div>
+    {% endif %}
+
+    {# ── Active Risks ── #}
+    <h2 style="margin-top:1.5rem;">
+        ⚠️ Active Risks
+        {% if risks %}
+            <span class="count-badge" style="color:var(--red);">{{ risks | length }}</span>
+        {% endif %}
+    </h2>
+
+    {% if risks %}
+    <div>
+        {% for entry in risks[:10] %}
+        <div class="entry-card" id="entry-{{ entry.id }}" style="border-left:3px solid var(--red);">
+            <div class="entry-header">
+                <div>
+                    <a href="/entry/{{ entry.id }}" class="entry-title">{{ entry.title }}</a>
+                </div>
+                <div class="entry-actions">
+                    <select class="reclassify-select"
+                            hx-post="/entry/{{ entry.id }}/reclassify"
+                            hx-target="#entry-{{ entry.id }}"
+                            hx-swap="outerHTML"
+                            name="new_type"
+                            title="Reclassify">
+                        <option value="" disabled selected>⇄ Type</option>
+                        {% for t in classifiable_types %}
+                            {% set td = type_display.get(t) %}
+                            <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
+                                {{ td.emoji }} {{ td.label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <button class="action-btn"
+                            hx-post="/entry/{{ entry.id }}/archive"
+                            hx-target="#entry-{{ entry.id }}"
+                            hx-swap="outerHTML"
+                            title="Archive (resolved)">📦</button>
+                </div>
+            </div>
+            <div class="entry-summary">{{ entry.summary }}</div>
+            <div class="entry-meta">{{ entry.author_name }} · {{ relative_time(entry.created_at) }}</div>
+        </div>
+        {% endfor %}
+        {% if risks | length > 10 %}
+        <div style="text-align:center; padding:0.5rem;">
+            <a href="/?type=risk" style="color:var(--accent); font-size:0.82rem;">View all {{ risks | length }} risks →</a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div style="padding:0.8rem 0; color:var(--text-muted); font-size:0.85rem;">No active risks.</div>
+    {% endif %}
+
+</div>
+
+{# ── Right column ── #}
+<div class="panel">
+
+    {# ── Type Distribution ── #}
+    <h2>📈 Type Distribution</h2>
+    {% if type_breakdown %}
+    <div style="margin-bottom:1.2rem;">
+        {% set max_type_count = type_breakdown.values() | max %}
+        {% for type_key, count in type_breakdown.items() | sort(attribute='1', reverse=True) %}
+            {% set display = type_display.get(type_key) %}
+            {% if display %}
+            <div style="margin-bottom:0.5rem;">
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:0.15rem;">
+                    <span>
+                        <span class="type-chip chip-{{ display.color }}" style="font-size:0.7rem;">
+                            {{ display.emoji }} {{ display.label }}
+                        </span>
+                    </span>
+                    <span style="font-weight:600; color:
+                        {% if type_key == 'unclassified' %}var(--red){% elif type_key == 'risk' %}var(--red){% else %}var(--text){% endif %};">
+                        {{ count }}
+                    </span>
+                </div>
+                <div class="eval-bar" style="height:5px;">
+                    <div class="eval-bar-fill" style="width:{{ ((count / max_type_count) * 100) | round | int }}%;
+                        background:{% if type_key == 'unclassified' %}var(--red)
+                            {% elif type_key == 'risk' %}var(--red)
+                            {% elif type_key == 'task' %}var(--green)
+                            {% elif type_key == 'decision' %}var(--purple)
+                            {% elif type_key == 'idea' %}var(--blue)
+                            {% elif type_key == 'strategy' %}var(--gold)
+                            {% elif type_key == 'arch_note' %}var(--gray)
+                            {% else %}var(--teal){% endif %};"></div>
+                </div>
+            </div>
+            {% endif %}
+        {% endfor %}
+        <div style="text-align:right; font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">
+            {{ total_all }} total active entries
+        </div>
+    </div>
+    {% else %}
+    <div style="color:var(--text-muted); font-size:0.85rem; margin-bottom:1.2rem;">No entries yet.</div>
+    {% endif %}
+
+    {# ── Task Backlog ── #}
+    <h2 style="margin-top:0.5rem;">
+        ✅ Task Backlog
+        {% if tasks %}
+            <span class="count-badge">{{ tasks | length }} open</span>
+        {% endif %}
+    </h2>
+
+    {% if tasks %}
+    <div>
+        {% for entry in tasks[:8] %}
+        <div class="entry-card" id="entry-{{ entry.id }}" style="border-left:3px solid var(--green);">
+            <div class="entry-header">
+                <div style="min-width:0; flex:1;">
+                    <a href="/entry/{{ entry.id }}" class="entry-title"
+                       style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">
+                        {{ entry.title }}
+                    </a>
+                </div>
+                <div class="entry-actions">
+                    <button class="action-btn action-danger"
+                            hx-post="/entry/{{ entry.id }}/archive"
+                            hx-target="#entry-{{ entry.id }}"
+                            hx-swap="outerHTML"
+                            title="Mark done / Archive">✓</button>
+                </div>
+            </div>
+            <div class="entry-meta">{{ entry.author_name }} · {{ relative_time(entry.created_at) }}
+                {% if entry.project %} · 📁 {{ entry.project }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% if tasks | length > 8 %}
+        <div style="text-align:center; padding:0.5rem;">
+            <a href="/?type=task" style="color:var(--accent); font-size:0.82rem;">View all {{ tasks | length }} tasks →</a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div style="padding:0.5rem 0; color:var(--text-muted); font-size:0.85rem;">No open tasks.</div>
+    {% endif %}
+
+    {# ── Recent Decisions ── #}
+    <h2 style="margin-top:1.2rem;">
+        ⚖️ Decision Log
+        {% if decisions %}
+            <span class="count-badge">{{ decisions | length }} recorded</span>
+        {% endif %}
+    </h2>
+
+    {% if decisions %}
+    <div>
+        {% for entry in decisions[:6] %}
+        <div style="padding:0.6rem 0; border-bottom:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem;">
+                <a href="/entry/{{ entry.id }}" class="entry-title" style="font-size:0.88rem;">{{ entry.title }}</a>
+                <span style="font-size:0.72rem; color:var(--text-muted); flex-shrink:0;">{{ relative_time(entry.created_at) }}</span>
+            </div>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:0.2rem;">{{ entry.summary[:120] }}{% if entry.summary|length > 120 %}…{% endif %}</div>
+        </div>
+        {% endfor %}
+        {% if decisions | length > 6 %}
+        <div style="text-align:center; padding:0.5rem;">
+            <a href="/?type=decision" style="color:var(--accent); font-size:0.82rem;">View all {{ decisions | length }} decisions →</a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div style="padding:0.5rem 0; color:var(--text-muted); font-size:0.85rem;">No decisions recorded yet.</div>
+    {% endif %}
+
+    {# ── Strategy ── #}
+    {% if strategy %}
+    <h2 style="margin-top:1.2rem;">
+        🎯 Strategy Notes
+        <span class="count-badge">{{ strategy | length }}</span>
+    </h2>
+    <div>
+        {% for entry in strategy[:4] %}
+        <div style="padding:0.5rem 0; border-bottom:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; gap:0.5rem;">
+                <a href="/entry/{{ entry.id }}" class="entry-title" style="font-size:0.88rem;">{{ entry.title }}</a>
+                <span style="font-size:0.72rem; color:var(--text-muted); flex-shrink:0;">{{ relative_time(entry.created_at) }}</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% if strategy | length > 4 %}
+        <div style="text-align:center; padding:0.5rem;">
+            <a href="/?type=strategy" style="color:var(--accent); font-size:0.82rem;">View all {{ strategy | length }} →</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}

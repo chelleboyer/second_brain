@@ -258,6 +258,37 @@ class BrainEntryRepository:
             archived = row["cnt"] if row else 0
             return {"total": total, "archived": archived, "active": total - archived}
 
+    async def get_type_breakdown(self) -> dict[str, int]:
+        """Get active (non-archived) entry count per type."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT type, COUNT(*) as count
+                FROM brain_entries
+                WHERE archived_at IS NULL
+                GROUP BY type
+                ORDER BY count DESC
+                """
+            )
+            rows = await cursor.fetchall()
+            return {row["type"]: row["count"] for row in rows}
+
+    async def get_activity_by_day(self, days: int = 7) -> list[dict]:
+        """Get entry counts per day for the last N days (including zeros)."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT date(created_at) as day, COUNT(*) as count
+                FROM brain_entries
+                WHERE created_at >= date('now', ?)
+                GROUP BY date(created_at)
+                ORDER BY day ASC
+                """,
+                (f"-{days} days",),
+            )
+            rows = await cursor.fetchall()
+            return [{"day": row["day"], "count": row["count"]} for row in rows]
+
     @staticmethod
     def _row_to_entry(row) -> BrainEntry:
         """Convert a database row to a BrainEntry model."""

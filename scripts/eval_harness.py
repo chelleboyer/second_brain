@@ -15,11 +15,6 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Fix Windows console encoding for emoji output
-if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
-
 import httpx
 import structlog
 
@@ -28,14 +23,83 @@ log = structlog.get_logger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_PATH = PROJECT_ROOT / "eval_results.json"
 PROGRESS_FILE = PROJECT_ROOT / ".eval_running"
+PID_FILE = PROJECT_ROOT / ".eval_pid"
+LOG_FILE = PROJECT_ROOT / ".eval_log"
+HISTORY_PATH = PROJECT_ROOT / "eval_history.json"
+MAX_HISTORY_RUNS = 10
+
+# Ring-buffer log: keep last N lines in file so the UI can poll it
+_LOG_MAX_LINES = 200
+_log_lines: list[str] = []
+
+
+def _emit(msg: str) -> None:
+    """Print to console (ASCII-safe) AND append to the eval log file."""
+    # Console print - safe for cp1252
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", errors="replace").decode())
+
+    _log_lines.append(msg)
+    # Trim to last N lines
+    if len(_log_lines) > _LOG_MAX_LINES:
+        del _log_lines[: len(_log_lines) - _LOG_MAX_LINES]
+    try:
+        LOG_FILE.write_text("\n".join(_log_lines), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _update_progress(msg: str) -> None:
     """Write current progress to the lock file for UI polling."""
     try:
-        PROGRESS_FILE.write_text(msg)
+        PROGRESS_FILE.write_text(msg, encoding="utf-8")
     except OSError:
         pass
+
+
+def _save_incremental(results: list[dict]) -> None:
+    """Save results after each model so the UI can show partial data."""
+    try:
+        RESULTS_PATH.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _save_history(results: list[dict]) -> None:
+    """Append a compact run record to eval_history.json (keeps last MAX_HISTORY_RUNS runs)."""
+    try:
+        history: list[dict] = []
+        if HISTORY_PATH.exists():
+            try:
+                history = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                history = []
+
+        from datetime import datetime, timezone
+
+        run = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "models": {
+                r["model_name"]: {
+                    "model_type": r["model_type"],
+                    "accuracy": r["accuracy"],
+                    "avg_latency_ms": r["avg_latency_ms"],
+                    "p50_latency_ms": r.get("p50_latency_ms", 0),
+                    "errors": r["errors"],
+                    "total_samples": r["total_samples"],
+                }
+                for r in results
+            },
+        }
+        history.append(run)
+        if len(history) > MAX_HISTORY_RUNS:
+            history = history[-MAX_HISTORY_RUNS:]
+        HISTORY_PATH.write_text(json.dumps(history, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
 
 # ── Labeled test dataset ─────────────────────────────────────────
 # Each sample: (text, expected_type, description)
@@ -125,7 +189,7 @@ CLASSIFICATION_MODELS = [
 EMBEDDING_MODELS = [
     "BAAI/bge-small-en-v1.5",
     "BAAI/bge-base-en-v1.5",
-    "sentence-transformers/all-MiniLM-L6-v2",
+    "BAAI/bge-large-en-v1.5",
 ]
 
 CHAT_URL = "https://router.huggingface.co/v1/chat/completions"
@@ -152,6 +216,7 @@ class ClassificationResult:
     latency_ms: float
     raw_response: str
     error: str | None = None
+    description: str = ""
 
 
 @dataclass
@@ -178,17 +243,54 @@ class ModelEvaluation:
     timestamp: str = ""
 
     def to_dict(self) -> dict:
+        from collections import defaultdict
+
+        # Latency percentiles (exclude errored samples)
+        good_latencies = sorted(r.latency_ms for r in self.results if not r.error)
+
+        def _pct(data: list, p: float) -> float:
+            if not data:
+                return 0.0
+            return data[min(int(len(data) * p), len(data) - 1)]
+
+        p50 = _pct(good_latencies, 0.50)
+        p95 = _pct(good_latencies, 0.95)
+
+        # Per-type accuracy breakdown (classification only)
+        per_type_accuracy: dict = {}
+        if self.model_type == "classification":
+            type_correct: dict = defaultdict(int)
+            type_total: dict = defaultdict(int)
+            for r in self.results:
+                expected = getattr(r, "expected_type", None)
+                if expected:
+                    type_total[expected] += 1
+                    if getattr(r, "correct", False):
+                        type_correct[expected] += 1
+            per_type_accuracy = {
+                t: {
+                    "correct": type_correct[t],
+                    "total": type_total[t],
+                    "pct": round(type_correct[t] / type_total[t], 3) if type_total[t] else 0,
+                }
+                for t in type_total
+            }
+
         return {
             "model_name": self.model_name,
             "model_type": self.model_type,
             "accuracy": round(self.accuracy, 4),
             "avg_latency_ms": round(self.avg_latency_ms, 1),
+            "p50_latency_ms": round(p50, 1),
+            "p95_latency_ms": round(p95, 1),
             "total_samples": self.total_samples,
             "errors": self.errors,
             "timestamp": self.timestamp,
+            "per_type_accuracy": per_type_accuracy,
             "results": [
                 {
                     "text": r.sample_text[:80],
+                    "description": getattr(r, "description", ""),
                     "expected": r.expected_type if hasattr(r, "expected_type") else None,
                     "predicted": r.predicted_type if hasattr(r, "predicted_type") else None,
                     "correct": r.correct if hasattr(r, "correct") else None,
@@ -239,9 +341,9 @@ async def evaluate_classification_model(
     """Run all eval samples through a classification model."""
     from datetime import datetime, timezone
 
-    print(f"\n{'='*60}")
-    print(f"Evaluating classification: {model}")
-    print(f"{'='*60}")
+    _emit(f"\n{'='*60}")
+    _emit(f"Evaluating classification: {model}")
+    _emit(f"{'='*60}")
 
     evaluation = ModelEvaluation(
         model_name=model,
@@ -255,7 +357,7 @@ async def evaluate_classification_model(
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         for i, sample in enumerate(EVAL_SAMPLES):
-            _update_progress(f"Classification: {model.split('/')[-1]} — sample {i+1}/{len(EVAL_SAMPLES)}")
+            _update_progress(f"Classification: {model.split('/')[-1]} - sample {i+1}/{len(EVAL_SAMPLES)}")
             prompt = CLASSIFICATION_PROMPT.format(text=sample["text"])
             payload = {
                 "model": model,
@@ -279,10 +381,11 @@ async def evaluate_classification_model(
                         latency_ms=elapsed_ms,
                         raw_response=response.text[:200],
                         error=f"HTTP {response.status_code}",
+                        description=sample.get("description", ""),
                     )
                     evaluation.results.append(result)
                     evaluation.errors += 1
-                    print(f"  [{i+1}/{len(EVAL_SAMPLES)}] ERROR: HTTP {response.status_code}")
+                    _emit(f"  [{i+1}/{len(EVAL_SAMPLES)}] ERROR: HTTP {response.status_code}")
                     continue
 
                 data = response.json()
@@ -300,12 +403,13 @@ async def evaluate_classification_model(
                     correct=is_correct,
                     latency_ms=elapsed_ms,
                     raw_response=content[:200],
+                    description=sample.get("description", ""),
                 )
                 evaluation.results.append(result)
 
-                status = "✅" if is_correct else "❌"
-                print(
-                    f"  [{i+1}/{len(EVAL_SAMPLES)}] {status} "
+                status = "OK" if is_correct else "FAIL"
+                _emit(
+                    f"  [{i+1}/{len(EVAL_SAMPLES)}] {status:4s} "
                     f"expected={sample['expected_type']:<12} "
                     f"got={predicted or 'FAIL':<12} "
                     f"({elapsed_ms:.0f}ms) "
@@ -322,10 +426,11 @@ async def evaluate_classification_model(
                     latency_ms=elapsed_ms,
                     raw_response="",
                     error=str(e),
+                    description=sample.get("description", ""),
                 )
                 evaluation.results.append(result)
                 evaluation.errors += 1
-                print(f"  [{i+1}/{len(EVAL_SAMPLES)}] ERROR: {e}")
+                _emit(f"  [{i+1}/{len(EVAL_SAMPLES)}] ERROR: {e}")
 
             # Rate limit: small delay between requests
             await asyncio.sleep(0.5)
@@ -334,9 +439,9 @@ async def evaluate_classification_model(
     evaluation.accuracy = correct / len(EVAL_SAMPLES) if EVAL_SAMPLES else 0
     evaluation.avg_latency_ms = sum(latencies) / len(latencies) if latencies else 0
 
-    print(f"\n  Accuracy: {evaluation.accuracy:.1%} ({correct}/{len(EVAL_SAMPLES)})")
-    print(f"  Avg latency: {evaluation.avg_latency_ms:.0f}ms")
-    print(f"  Errors: {evaluation.errors}")
+    _emit(f"\n  Accuracy: {evaluation.accuracy:.1%} ({correct}/{len(EVAL_SAMPLES)})")
+    _emit(f"  Avg latency: {evaluation.avg_latency_ms:.0f}ms")
+    _emit(f"  Errors: {evaluation.errors}")
 
     return evaluation
 
@@ -347,9 +452,9 @@ async def evaluate_embedding_model(
     """Run eval samples through an embedding model to test availability and latency."""
     from datetime import datetime, timezone
 
-    print(f"\n{'='*60}")
-    print(f"Evaluating embedding: {model}")
-    print(f"{'='*60}")
+    _emit(f"\n{'='*60}")
+    _emit(f"Evaluating embedding: {model}")
+    _emit(f"{'='*60}")
 
     # Use a subset of samples for embedding eval
     samples = EVAL_SAMPLES[:5]
@@ -367,7 +472,7 @@ async def evaluate_embedding_model(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for i, sample in enumerate(samples):
-            _update_progress(f"Embedding: {model.split('/')[-1]} — sample {i+1}/{len(samples)}")
+            _update_progress(f"Embedding: {model.split('/')[-1]} - sample {i+1}/{len(samples)}")
             payload = {"inputs": sample["text"][:500]}
 
             start = time.perf_counter()
@@ -384,7 +489,7 @@ async def evaluate_embedding_model(
                     )
                     evaluation.results.append(result)
                     evaluation.errors += 1
-                    print(f"  [{i+1}/{len(samples)}] ERROR: HTTP {response.status_code}")
+                    _emit(f"  [{i+1}/{len(samples)}] ERROR: HTTP {response.status_code}")
                     continue
 
                 data = response.json()
@@ -406,7 +511,7 @@ async def evaluate_embedding_model(
                 )
                 evaluation.results.append(result)
                 successful += 1
-                print(f"  [{i+1}/{len(samples)}] ✅ {dims}d ({elapsed_ms:.0f}ms)")
+                _emit(f"  [{i+1}/{len(samples)}] OK   {dims}d ({elapsed_ms:.0f}ms)")
 
             except Exception as e:
                 elapsed_ms = (time.perf_counter() - start) * 1000
@@ -418,7 +523,7 @@ async def evaluate_embedding_model(
                 )
                 evaluation.results.append(result)
                 evaluation.errors += 1
-                print(f"  [{i+1}/{len(samples)}] ERROR: {e}")
+                _emit(f"  [{i+1}/{len(samples)}] ERROR: {e}")
 
             await asyncio.sleep(0.3)
 
@@ -426,8 +531,8 @@ async def evaluate_embedding_model(
     evaluation.accuracy = successful / len(samples) if samples else 0
     evaluation.avg_latency_ms = sum(latencies) / len(latencies) if latencies else 0
 
-    print(f"\n  Success rate: {evaluation.accuracy:.1%} ({successful}/{len(samples)})")
-    print(f"  Avg latency: {evaluation.avg_latency_ms:.0f}ms")
+    _emit(f"\n  Success rate: {evaluation.accuracy:.1%} ({successful}/{len(samples)})")
+    _emit(f"  Avg latency: {evaluation.avg_latency_ms:.0f}ms")
 
     return evaluation
 
@@ -446,8 +551,9 @@ async def run_full_eval(
             try:
                 evaluation = await evaluate_classification_model(model, api_token)
                 all_results.append(evaluation.to_dict())
+                _save_incremental(all_results)
             except Exception as e:
-                print(f"  FATAL error evaluating {model}: {e}")
+                _emit(f"  FATAL error evaluating {model}: {e}")
 
     if not classification_only:
         for mi, model in enumerate(EMBEDDING_MODELS):
@@ -455,15 +561,17 @@ async def run_full_eval(
             try:
                 evaluation = await evaluate_embedding_model(model, api_token)
                 all_results.append(evaluation.to_dict())
+                _save_incremental(all_results)
             except Exception as e:
-                print(f"  FATAL error evaluating {model}: {e}")
+                _emit(f"  FATAL error evaluating {model}: {e}")
 
-    # Save results
-    RESULTS_PATH.write_text(json.dumps(all_results, indent=2))
-    print(f"\n{'='*60}")
-    print(f"Results saved to {RESULTS_PATH}")
-    print(f"View at http://localhost:8000/eval")
-    print(f"{'='*60}")
+    # Final save
+    _save_incremental(all_results)
+    _save_history(all_results)
+    _emit(f"\n{'='*60}")
+    _emit(f"Results saved to {RESULTS_PATH}")
+    _emit(f"View at http://localhost:8000/eval")
+    _emit(f"{'='*60}")
 
     return all_results
 
@@ -484,14 +592,22 @@ def main():
     load_dotenv(PROJECT_ROOT / ".env")
     api_token = os.environ.get("HF_API_TOKEN")
     if not api_token:
-        print("ERROR: HF_API_TOKEN not found in .env")
+        _emit("ERROR: HF_API_TOKEN not found in .env")
         lock_file.unlink(missing_ok=True)
         return
 
-    print("🧠 Second Brain — Model Evaluation Harness")
-    print(f"Classification models: {len(CLASSIFICATION_MODELS)}")
-    print(f"Embedding models: {len(EMBEDDING_MODELS)}")
-    print(f"Eval samples: {len(EVAL_SAMPLES)}")
+    # Write PID to a dedicated file (separate from progress so updates don't clobber it)
+    PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+    lock_file.write_text("Starting...", encoding="utf-8")
+
+    # Clear previous log
+    _log_lines.clear()
+    LOG_FILE.write_text("", encoding="utf-8")
+
+    _emit("Second Brain -- Model Evaluation Harness")
+    _emit(f"Classification models: {len(CLASSIFICATION_MODELS)}")
+    _emit(f"Embedding models: {len(EMBEDDING_MODELS)}")
+    _emit(f"Eval samples: {len(EVAL_SAMPLES)}")
 
     try:
         asyncio.run(run_full_eval(
@@ -501,6 +617,8 @@ def main():
         ))
     finally:
         lock_file.unlink(missing_ok=True)
+        PID_FILE.unlink(missing_ok=True)
+        _emit("Evaluation complete.")
 
 
 if __name__ == "__main__":
