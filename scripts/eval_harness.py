@@ -452,6 +452,8 @@ def main():
     import argparse
     import os
 
+    lock_file = PROJECT_ROOT / ".eval_running"
+
     parser = argparse.ArgumentParser(description="Second Brain Model Evaluation Harness")
     parser.add_argument("--classification-only", action="store_true", help="Only evaluate classification models")
     parser.add_argument("--embedding-only", action="store_true", help="Only evaluate embedding models")
@@ -463,6 +465,7 @@ def main():
     api_token = os.environ.get("HF_API_TOKEN")
     if not api_token:
         print("ERROR: HF_API_TOKEN not found in .env")
+        lock_file.unlink(missing_ok=True)
         return
 
     print("🧠 Second Brain — Model Evaluation Harness")
@@ -470,11 +473,14 @@ def main():
     print(f"Embedding models: {len(EMBEDDING_MODELS)}")
     print(f"Eval samples: {len(EVAL_SAMPLES)}")
 
-    asyncio.run(run_full_eval(
-        api_token,
-        classification_only=args.classification_only,
-        embedding_only=args.embedding_only,
-    ))
+    try:
+        asyncio.run(run_full_eval(
+            api_token,
+            classification_only=args.classification_only,
+            embedding_only=args.embedding_only,
+        ))
+    finally:
+        lock_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

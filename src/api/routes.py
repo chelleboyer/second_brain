@@ -312,7 +312,69 @@ async def eval_page(request: Request) -> HTMLResponse:
         except (json.JSONDecodeError, OSError):
             pass
 
+    running = (Path(__file__).resolve().parent.parent.parent / ".eval_running").exists()
+
     return templates.TemplateResponse(
         "eval.html",
-        _shared_ctx(request, eval_results=eval_results),
+        _shared_ctx(request, eval_results=eval_results, eval_running=running),
     )
+
+
+@router.post("/eval/run", response_class=HTMLResponse)
+async def run_eval(request: Request, mode: str = Form(default="all")) -> HTMLResponse:
+    """Trigger the eval harness as a background subprocess."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    project_root = Path(__file__).resolve().parent.parent.parent
+    lock_file = project_root / ".eval_running"
+
+    if lock_file.exists():
+        return HTMLResponse(
+            '<div id="eval-status" class="eval-status running"'
+            ' hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">'
+            '⏳ Evaluation already in progress...</div>'
+        )
+
+    lock_file.touch()
+
+    args = [sys.executable, "-m", "scripts.eval_harness"]
+    if mode == "classification":
+        args.append("--classification-only")
+    elif mode == "embedding":
+        args.append("--embedding-only")
+
+    subprocess.Popen(
+        args,
+        cwd=str(project_root),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    return HTMLResponse(
+        '<div id="eval-status" class="eval-status running"'
+        ' hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">'
+        '⏳ Evaluation running... this may take a few minutes.</div>'
+    )
+
+
+@router.get("/eval/status", response_class=HTMLResponse)
+async def eval_status(request: Request) -> HTMLResponse:
+    """Check if eval harness is still running."""
+    from pathlib import Path
+
+    lock_file = Path(__file__).resolve().parent.parent.parent / ".eval_running"
+    if lock_file.exists():
+        return HTMLResponse(
+            '<div id="eval-status" class="eval-status running"'
+            ' hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">'
+            '⏳ Evaluation running... this may take a few minutes.</div>'
+        )
+    else:
+        return HTMLResponse(
+            '<div id="eval-status" class="eval-status done"'
+            ' hx-get="/eval" hx-trigger="load" hx-target="body" hx-swap="outerHTML"'
+            ' hx-push-url="true">'
+            '✅ Evaluation complete! Loading results...</div>'
+        )

@@ -493,6 +493,54 @@
 
         .tool-link:hover { border-color: var(--accent); }
 
+        /* Eval run controls */
+        .eval-run-controls {
+            display: inline-flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .eval-run-btn {
+            padding: 0.4rem 0.9rem;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        .eval-run-btn:hover { opacity: 0.85; }
+        .eval-run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .eval-run-btn.btn-secondary {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .eval-run-btn.btn-secondary:hover { border-color: var(--accent); }
+
+        .eval-status {
+            margin: 0.8rem 0;
+            padding: 0.6rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .eval-status.running {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+        }
+
+        .eval-status.done {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--green);
+            color: var(--green);
+        }
+
         /* Eval page */
         .eval-grid {
             display: grid;

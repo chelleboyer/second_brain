@@ -6,16 +6,42 @@
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
 
-    <h2>📊 Model Evaluation Harness</h2>
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <h2 style="margin: 0;">📊 Model Evaluation Harness</h2>
+        <div class="eval-run-controls">
+            <form hx-post="/eval/run" hx-target="#eval-status" hx-swap="outerHTML" style="display: inline-flex; gap: 0.4rem;">
+                <input type="hidden" name="mode" value="all">
+                <button type="submit" class="eval-run-btn" {% if eval_running %}disabled{% endif %}>
+                    🚀 Run All
+                </button>
+            </form>
+            <form hx-post="/eval/run" hx-target="#eval-status" hx-swap="outerHTML" style="display: inline-flex; gap: 0.4rem;">
+                <input type="hidden" name="mode" value="classification">
+                <button type="submit" class="eval-run-btn btn-secondary" {% if eval_running %}disabled{% endif %}>
+                    🏷️ Classification Only
+                </button>
+            </form>
+            <form hx-post="/eval/run" hx-target="#eval-status" hx-swap="outerHTML" style="display: inline-flex; gap: 0.4rem;">
+                <input type="hidden" name="mode" value="embedding">
+                <button type="submit" class="eval-run-btn btn-secondary" {% if eval_running %}disabled{% endif %}>
+                    🧲 Embedding Only
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if eval_running %}
+        <div id="eval-status" class="eval-status running"
+             hx-get="/eval/status" hx-trigger="every 3s" hx-swap="outerHTML">
+            ⏳ Evaluation running... this may take a few minutes.
+        </div>
+    {% else %}
+        <div id="eval-status"></div>
+    {% endif %}
 
     {% if not eval_results %}
         <div class="capture-prompt">
-            <p>No evaluation results yet.</p>
-            <p style="font-size: 0.85rem;">Run the harness:</p>
-            <pre class="raw-content" style="max-height: 80px; text-align: left; display: inline-block;">python -m scripts.eval_harness</pre>
-            <p style="font-size: 0.8rem; margin-top: 0.5rem; color: var(--text-muted);">
-                Options: <code>--classification-only</code> or <code>--embedding-only</code>
-            </p>
+            <p>No evaluation results yet. Click <strong>Run All</strong> above to start.</p>
         </div>
     {% else %}
 
