@@ -1,0 +1,76 @@
+{% set display = type_display.get(entry.type) %}
+<div class="entry-card{% if entry.archived_at %} entry-archived{% endif %}" id="entry-{{ entry.id }}">
+    <div class="entry-header">
+        <div>
+            {% if display %}
+                <span class="type-chip chip-{{ display.color }}">{{ display.emoji }} {{ display.label }}</span>
+            {% endif %}
+            <a href="/entry/{{ entry.id }}" class="entry-title" title="View details">{{ entry.title }}</a>
+        </div>
+        <div class="entry-actions">
+            <!-- Reclassify dropdown -->
+            <select class="reclassify-select"
+                    hx-post="/entry/{{ entry.id }}/reclassify"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    name="new_type"
+                    title="Reclassify">
+                <option value="" disabled selected>⇄ Type</option>
+                {% for t in classifiable_types %}
+                    {% set td = type_display.get(t) %}
+                    <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
+                        {{ td.emoji }} {{ td.label }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <!-- Edit button -->
+            <button class="action-btn"
+                    hx-get="/entry/{{ entry.id }}/edit"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Edit">✏️</button>
+
+            <!-- Archive / Unarchive -->
+            {% if entry.archived_at %}
+                <button class="action-btn"
+                        hx-post="/entry/{{ entry.id }}/unarchive"
+                        hx-target="#entry-{{ entry.id }}"
+                        hx-swap="outerHTML"
+                        title="Unarchive">♻️</button>
+                <button class="action-btn action-danger"
+                        hx-delete="/entry/{{ entry.id }}"
+                        hx-target="#entry-{{ entry.id }}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Permanently delete this entry?"
+                        title="Delete permanently">🗑️</button>
+            {% else %}
+                <button class="action-btn"
+                        hx-post="/entry/{{ entry.id }}/archive"
+                        hx-target="#entry-{{ entry.id }}"
+                        hx-swap="outerHTML"
+                        title="Archive">📦</button>
+            {% endif %}
+
+            {% if entry.slack_permalink %}
+                <a href="{{ entry.slack_permalink }}" target="_blank" class="action-btn" title="Open in Slack">🔗</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="entry-summary">{{ entry.summary }}</div>
+    <div class="entry-meta">
+        {{ entry.author_name }} · {{ relative_time(entry.created_at) }}
+        {% if entry.project %}
+            · 📁 {{ entry.project }}
+        {% endif %}
+        {% if entry.reply_count > 0 %}
+            · 💬 {{ entry.reply_count }} replies
+        {% endif %}
+        {% if entry.source == "manual" %}
+            · ✍️ Manual
+        {% endif %}
+        {% if entry.archived_at %}
+            · 📦 Archived
+        {% endif %}
+    </div>
+</div>

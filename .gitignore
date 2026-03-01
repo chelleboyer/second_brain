@@ -1,0 +1,30 @@
+# Secrets
+.env
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Build artifacts
+dist/
+*.egg-info/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Debug / temp artifacts
+_debug_*
+eval_results.json
+scripts/test_edit_flow.py
+scripts/test_ui_fix.py

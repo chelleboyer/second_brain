@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="detail-nav">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+    </div>
+
+    {% set display = type_display.get(entry.type) %}
+
+    <div class="detail-header">
+        <div>
+            {% if display %}
+                <span class="type-chip chip-{{ display.color }}" style="font-size: 0.9rem; padding: 0.3rem 0.8rem;">
+                    {{ display.emoji }} {{ display.label }}
+                </span>
+            {% endif %}
+            <h2 style="display: inline; margin-left: 0.5rem;">{{ entry.title }}</h2>
+        </div>
+        <div class="entry-actions">
+            <button class="action-btn"
+                    hx-get="/entry/{{ entry.id }}/edit"
+                    hx-target="#detail-card"
+                    hx-swap="innerHTML"
+                    title="Edit">✏️ Edit</button>
+            <select class="reclassify-select"
+                    hx-post="/entry/{{ entry.id }}/reclassify"
+                    hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful) location.reload()"
+                    name="new_type">
+                <option value="" disabled selected>⇄ Reclassify</option>
+                {% for t in classifiable_types %}
+                    {% set td = type_display.get(t) %}
+                    <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
+                        {{ td.emoji }} {{ td.label }}
+                    </option>
+                {% endfor %}
+            </select>
+            {% if entry.archived_at %}
+                <button class="action-btn"
+                        hx-post="/entry/{{ entry.id }}/unarchive"
+                        hx-swap="none"
+                        hx-on::after-request="if(event.detail.successful) location.reload()"
+                        title="Unarchive">♻️ Unarchive</button>
+            {% else %}
+                <button class="action-btn"
+                        hx-post="/entry/{{ entry.id }}/archive"
+                        hx-swap="none"
+                        hx-on::after-request="if(event.detail.successful) location.reload()"
+                        title="Archive">📦 Archive</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="detail-card">
+        <div class="detail-section">
+            <h3>Summary</h3>
+            <p>{{ entry.summary }}</p>
+        </div>
+
+        <div class="detail-section">
+            <h3>Raw Content</h3>
+            <pre class="raw-content">{{ entry.raw_content }}</pre>
+        </div>
+
+        <div class="detail-section">
+            <h3>Metadata</h3>
+            <table class="meta-table">
+                <tr><td>ID</td><td><code>{{ entry.id }}</code></td></tr>
+                <tr><td>Type</td><td>{{ display.emoji if display }} {{ entry.type.value }}</td></tr>
+                <tr><td>Author</td><td>{{ entry.author_name }} ({{ entry.author_id }})</td></tr>
+                <tr><td>Created</td><td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
+                <tr><td>Source</td><td>{{ entry.source }}</td></tr>
+                {% if entry.project %}
+                <tr><td>Project</td><td>{{ entry.project }}</td></tr>
+                {% endif %}
+                {% if entry.tags %}
+                <tr><td>Tags</td><td>{{ entry.tags | join(', ') }}</td></tr>
+                {% endif %}
+                {% if entry.slack_ts %}
+                <tr><td>Slack TS</td><td>{{ entry.slack_ts }}</td></tr>
+                {% endif %}
+                {% if entry.slack_permalink %}
+                <tr><td>Slack Link</td><td><a href="{{ entry.slack_permalink }}" target="_blank">Open in Slack 🔗</a></td></tr>
+                {% endif %}
+                {% if entry.thread_ts %}
+                <tr><td>Thread</td><td>{{ entry.thread_ts }}</td></tr>
+                {% endif %}
+                {% if entry.reply_count > 0 %}
+                <tr><td>Replies</td><td>{{ entry.reply_count }}</td></tr>
+                {% endif %}
+                {% if entry.embedding_vector_id %}
+                <tr><td>Vector ID</td><td><code>{{ entry.embedding_vector_id }}</code></td></tr>
+                {% endif %}
+                {% if entry.archived_at %}
+                <tr><td>Archived</td><td>{{ entry.archived_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

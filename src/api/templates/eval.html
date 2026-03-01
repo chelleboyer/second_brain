@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="detail-nav">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+    </div>
+
+    <h2>📊 Model Evaluation Harness</h2>
+
+    {% if not eval_results %}
+        <div class="capture-prompt">
+            <p>No evaluation results yet.</p>
+            <p style="font-size: 0.85rem;">Run the harness:</p>
+            <pre class="raw-content" style="max-height: 80px; text-align: left; display: inline-block;">python -m scripts.eval_harness</pre>
+            <p style="font-size: 0.8rem; margin-top: 0.5rem; color: var(--text-muted);">
+                Options: <code>--classification-only</code> or <code>--embedding-only</code>
+            </p>
+        </div>
+    {% else %}
+
+    <!-- Summary comparison -->
+    <h3 style="margin: 1rem 0 0.5rem;">Classification Models</h3>
+    <div class="eval-grid">
+        {% for result in eval_results if result.model_type == "classification" %}
+        <div class="eval-card">
+            <h3>{{ result.model_name }}</h3>
+            <div class="eval-metric">
+                <span class="metric-label">Accuracy</span>
+                <span class="metric-value {% if result.accuracy >= 0.8 %}metric-good{% elif result.accuracy >= 0.5 %}metric-ok{% else %}metric-bad{% endif %}">
+                    {{ (result.accuracy * 100)|round(1) }}%
+                </span>
+            </div>
+            <div class="eval-bar">
+                <div class="eval-bar-fill" style="width: {{ (result.accuracy * 100)|round }}%; background: {% if result.accuracy >= 0.8 %}var(--green){% elif result.accuracy >= 0.5 %}var(--gold){% else %}var(--red){% endif %};"></div>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Avg Latency</span>
+                <span class="metric-value {% if result.avg_latency_ms < 2000 %}metric-good{% elif result.avg_latency_ms < 5000 %}metric-ok{% else %}metric-bad{% endif %}">
+                    {{ result.avg_latency_ms|round(0)|int }}ms
+                </span>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Errors</span>
+                <span class="metric-value {% if result.errors == 0 %}metric-good{% else %}metric-bad{% endif %}">
+                    {{ result.errors }} / {{ result.total_samples }}
+                </span>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Tested</span>
+                <span class="metric-value" style="font-weight: 400; font-size: 0.78rem;">
+                    {{ result.timestamp[:19] }}
+                </span>
+            </div>
+
+            <!-- Per-sample breakdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">
+                    Show {{ result.results|length }} sample results
+                </summary>
+                <div style="margin-top: 0.5rem;">
+                    {% for r in result.results %}
+                    <div class="eval-metric" style="font-size: 0.78rem;">
+                        <span class="metric-label" style="flex: 1;" title="{{ r.text }}">
+                            {% if r.correct %}✅{% elif r.error %}💥{% else %}❌{% endif %}
+                            {{ r.text[:50] }}{% if r.text|length > 50 %}…{% endif %}
+                        </span>
+                        <span>
+                            {% if r.error %}
+                                <span class="metric-bad">{{ r.error }}</span>
+                            {% else %}
+                                <span class="{% if r.correct %}metric-good{% else %}metric-bad{% endif %}">
+                                    {{ r.predicted }}
+                                </span>
+                                {% if not r.correct %}
+                                    <span class="metric-label"> (exp: {{ r.expected }})</span>
+                                {% endif %}
+                            {% endif %}
+                            <span class="metric-label" style="margin-left: 0.3rem;">{{ r.latency_ms|round(0)|int }}ms</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+
+    <h3 style="margin: 1.5rem 0 0.5rem;">Embedding Models</h3>
+    <div class="eval-grid">
+        {% for result in eval_results if result.model_type == "embedding" %}
+        <div class="eval-card">
+            <h3>{{ result.model_name }}</h3>
+            <div class="eval-metric">
+                <span class="metric-label">Success Rate</span>
+                <span class="metric-value {% if result.accuracy >= 0.8 %}metric-good{% elif result.accuracy >= 0.5 %}metric-ok{% else %}metric-bad{% endif %}">
+                    {{ (result.accuracy * 100)|round(1) }}%
+                </span>
+            </div>
+            <div class="eval-bar">
+                <div class="eval-bar-fill" style="width: {{ (result.accuracy * 100)|round }}%; background: {% if result.accuracy >= 0.8 %}var(--green){% elif result.accuracy >= 0.5 %}var(--gold){% else %}var(--red){% endif %};"></div>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Avg Latency</span>
+                <span class="metric-value {% if result.avg_latency_ms < 1000 %}metric-good{% elif result.avg_latency_ms < 3000 %}metric-ok{% else %}metric-bad{% endif %}">
+                    {{ result.avg_latency_ms|round(0)|int }}ms
+                </span>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Dimensions</span>
+                <span class="metric-value" style="font-weight: 400;">
+                    {% set dims = result.results|selectattr('dimensions')|map(attribute='dimensions')|list %}
+                    {% if dims %}{{ dims[0] }}{% else %}N/A{% endif %}
+                </span>
+            </div>
+            <div class="eval-metric">
+                <span class="metric-label">Errors</span>
+                <span class="metric-value {% if result.errors == 0 %}metric-good{% else %}metric-bad{% endif %}">
+                    {{ result.errors }} / {{ result.total_samples }}
+                </span>
+            </div>
+
+            <!-- Per-sample breakdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-muted);">
+                    Show {{ result.results|length }} sample results
+                </summary>
+                <div style="margin-top: 0.5rem;">
+                    {% for r in result.results %}
+                    <div class="eval-metric" style="font-size: 0.78rem;">
+                        <span class="metric-label" style="flex: 1;">
+                            {% if r.error %}💥{% else %}✅{% endif %}
+                            {{ r.text[:50] }}{% if r.text|length > 50 %}…{% endif %}
+                        </span>
+                        <span>
+                            {% if r.error %}
+                                <span class="metric-bad">{{ r.error[:40] }}</span>
+                            {% else %}
+                                {{ r.dimensions }}d
+                            {% endif %}
+                            <span class="metric-label" style="margin-left: 0.3rem;">{{ r.latency_ms|round(0)|int }}ms</span>
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

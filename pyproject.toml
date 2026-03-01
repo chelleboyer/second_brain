@@ -1,0 +1,39 @@
+[project]
+name = "second-brain"
+version = "0.1.0"
+description = "Slack-native cognitive system for knowledge capture, classification, and retrieval"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "aiosqlite>=0.19.0",
+    "qdrant-client>=1.7.0",
+    "slack-sdk>=3.27.0",
+    "httpx>=0.26.0",
+    "structlog>=24.1.0",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+second-brain = "src.main:run"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["src*"]

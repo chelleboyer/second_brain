@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Left column: Capture feed -->
+<div class="panel">
+    <h2>📥 Capture Feed
+        {% if counts %}
+            <span class="count-badge">{{ counts.active }} active{% if counts.archived %} · {{ counts.archived }} archived{% endif %}</span>
+        {% endif %}
+    </h2>
+
+    <!-- Manual capture form -->
+    <form class="capture-form" hx-post="/capture" hx-target="#feed-entries" hx-swap="afterbegin">
+        <input type="text" name="text" class="capture-input" placeholder="Capture a thought..." required>
+        <button type="submit" class="capture-btn">💾 Capture</button>
+    </form>
+
+    <!-- Type filter tabs -->
+    <div class="filter-tabs">
+        <a href="/?show_archived={{ show_archived }}"
+           class="filter-tab {% if not active_type %}active{% endif %}">All</a>
+        {% for t in entry_types %}
+            {% if t.value != 'unclassified' %}
+            {% set td = type_display.get(t) %}
+            <a href="/?type={{ t.value }}&show_archived={{ show_archived }}"
+               class="filter-tab {% if active_type == t.value %}active{% endif %}"
+               title="{{ td.label }}">{{ td.emoji }}</a>
+            {% endif %}
+        {% endfor %}
+        <span class="filter-separator">|</span>
+        {% if show_archived %}
+            <a href="/?type={{ active_type }}" class="filter-tab active">📦 Archived</a>
+        {% else %}
+            <a href="/?type={{ active_type }}&show_archived=true" class="filter-tab">📦 Archived</a>
+        {% endif %}
+    </div>
+
+    <div id="feed-entries">
+        {% for entry in entries %}
+            {% include "partials/entry_card.html" %}
+        {% endfor %}
+        {% if not entries %}
+            <div class="capture-prompt">
+                {% if show_archived %}
+                    <p>No archived entries.</p>
+                {% elif active_type %}
+                    <p>No entries of this type yet.</p>
+                {% else %}
+                    <p>No entries yet. Capture your first thought above or click Refresh to pull from Slack.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Right column: Search + Digest -->
+<div class="panel">
+    <h2>🔍 Search & Recall</h2>
+
+    <input type="text"
+           class="search-box"
+           name="q"
+           placeholder="Search your brain..."
+           hx-get="/search"
+           hx-trigger="keyup changed delay:300ms"
+           hx-target="#search-results">
+
+    <div id="search-results"></div>
+
+    <!-- Digest counter -->
+    {% if digest %}
+    <h2 style="margin-top: 1.5rem;">📊 Today's Digest</h2>
+    <div class="digest">
+        {% for type_key, count in digest.items() %}
+            {% set display = type_display.get(type_key) %}
+            {% if display %}
+                <span class="digest-item chip-{{ display.color }}">
+                    {{ display.emoji }} {{ display.label }}: {{ count }}
+                </span>
+            {% else %}
+                <span class="digest-item">{{ type_key }}: {{ count }}</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Quick links -->
+    <h2 style="margin-top: 1.5rem;">🛠 Tools</h2>
+    <div class="tools-grid">
+        <a href="/eval" class="tool-link">📊 Eval Harness</a>
+    </div>
+</div>
+{% endblock %}

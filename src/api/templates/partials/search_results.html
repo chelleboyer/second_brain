@@ -1,0 +1,44 @@
+{% for result in results %}
+{% set entry = result.entry %}
+{% set display = type_display.get(entry.type) %}
+<div class="entry-card" id="entry-{{ entry.id }}">
+    <div class="entry-header">
+        <div>
+            {% if display %}
+                <span class="type-chip chip-{{ display.color }}">{{ display.emoji }} {{ display.label }}</span>
+            {% endif %}
+            <a href="/entry/{{ entry.id }}" class="entry-title" title="View details">{{ entry.title }}</a>
+            {% if result.source == "vector" %}
+                <span class="source-badge badge-vector">🧲 vector</span>
+            {% elif result.source == "keyword" %}
+                <span class="source-badge badge-keyword">🔤 keyword</span>
+            {% elif result.source == "both" %}
+                <span class="source-badge badge-both">🧲🔤 both</span>
+            {% endif %}
+            <span class="score">{{ (result.score * 100)|round(1) }}%</span>
+        </div>
+        <div class="entry-actions">
+            <button class="action-btn"
+                    hx-get="/entry/{{ entry.id }}/edit"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Edit">✏️</button>
+            <button class="action-btn"
+                    hx-post="/entry/{{ entry.id }}/archive"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Archive">📦</button>
+            {% if entry.slack_permalink %}
+                <a href="{{ entry.slack_permalink }}" target="_blank" class="action-btn" title="Open in Slack">🔗</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="entry-summary">{{ entry.summary }}</div>
+    <div class="entry-meta">
+        {{ entry.author_name }} · {{ relative_time(entry.created_at) }}
+        {% if entry.reply_count > 0 %}
+            · 💬 {{ entry.reply_count }} replies
+        {% endif %}
+    </div>
+</div>
+{% endfor %}

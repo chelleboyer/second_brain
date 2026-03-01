@@ -1,0 +1,26 @@
+{% set display = type_display.get(entry.type) %}
+<div class="entry-card entry-editing" id="entry-{{ entry.id }}">
+    <form hx-put="/entry/{{ entry.id }}"
+          hx-target="#entry-{{ entry.id }}"
+          hx-swap="outerHTML">
+        <div class="edit-row">
+            <label>Title</label>
+            <input type="text" name="title" value="{{ entry.title }}" class="edit-input" required>
+        </div>
+        <div class="edit-row">
+            <label>Summary</label>
+            <textarea name="summary" class="edit-textarea" rows="3" required>{{ entry.summary }}</textarea>
+        </div>
+        <div class="edit-row">
+            <label>Project</label>
+            <input type="text" name="project" value="{{ entry.project or '' }}" class="edit-input" placeholder="Optional project name">
+        </div>
+        <div class="edit-actions">
+            <button type="submit" class="save-btn">💾 Save</button>
+            <button type="button" class="cancel-btn"
+                    hx-get="/entry/{{ entry.id }}/card"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</div>
