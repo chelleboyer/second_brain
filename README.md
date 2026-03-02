@@ -1,6 +1,6 @@
-# 🧠 Second Brain — Capture & Recall MVP
+# 🧠 Second Brain
 
-A Slack-native cognitive system that captures messages, classifies them with AI, and provides dual search (vector + keyword) through a local web dashboard.
+A Slack-native cognitive system that captures thoughts, classifies them with AI, resolves entities, detects duplicates, and surfaces structured reports — all through a local web dashboard.
 
 ## Prerequisites
 
@@ -12,23 +12,19 @@ A Slack-native cognitive system that captures messages, classifies them with AI,
 ## Installation
 
 ```bash
-# Clone the repository
-git clone <repo-url>
+git clone https://github.com/chelleboyer/second_brain.git
 cd second_brain
 
-# Create virtual environment
 python -m venv .venv
 .venv\Scripts\activate   # Windows
 # source .venv/bin/activate  # Linux/macOS
 
-# Install in editable mode
 pip install -e ".[dev]"
 ```
 
 ## Configuration
 
 ```bash
-# Copy the example env file
 copy .env.example .env   # Windows
 # cp .env.example .env   # Linux/macOS
 ```
@@ -46,87 +42,120 @@ Edit `.env` and fill in your tokens:
 
 ## Slack App Setup
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app (or select your existing one)
-2. Navigate to **OAuth & Permissions** → **Bot Token Scopes** and add:
-   - `channels:history` — read messages in public channels
-   - `groups:history` — read messages in private channels
-   - `mpim:history` — read messages in group DMs
-   - `im:history` — read bot direct messages
-   - `users:read` — resolve user display names
+1. Create a new app at [api.slack.com/apps](https://api.slack.com/apps)
+2. **OAuth & Permissions** → **Bot Token Scopes**:
+   - `channels:history`, `groups:history`, `mpim:history`, `im:history` — read messages
+   - `users:read` — resolve display names
    - `chat:write` — (optional, for future features)
-3. Click **Install to Workspace** (or **Reinstall** if you added new scopes)
-4. Copy the **Bot User OAuth Token** (`xoxb-...`) into your `.env` as `SLACK_BOT_TOKEN`
-5. To find your channel ID: right-click the channel in Slack → **View channel details** → scroll to the bottom to find the Channel ID (`C0123456789`)
-6. **Invite the bot** to your channel: in the channel, type `/invite @YourBotName`
+3. Install to workspace, copy the **Bot User OAuth Token** into `.env`
+4. Find your channel ID: right-click channel → **View channel details** → scroll to bottom
+5. Invite the bot: `/invite @YourBotName` in the channel
 
 ## Running
 
 ```bash
-# Activate the virtual environment first
 .venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # Linux/macOS
-
-# Using the entry point
-second-brain
-
-# Or directly
-python -m src.main
+second-brain             # or: python -m src.main
 ```
 
-The dashboard opens at **http://localhost:8000**.
+Dashboard opens at **http://localhost:8000**.
 
-On startup, the app:
-1. Initializes the SQLite database (creates tables if needed)
-2. Connects to Qdrant Cloud (creates the vector collection if needed)
-3. Runs a Slack catch-up — fetches new messages since the last run
-4. Starts the web server on `127.0.0.1:8000`
+On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack catch-up for new messages, and starts the web server. If Slack catch-up fails, the dashboard still starts — use manual capture and fix Slack later.
 
-If the Slack catch-up fails (e.g., missing scopes), the dashboard still starts — you can use manual capture and fix Slack later.
+## Features
 
-## Troubleshooting
+### Capture & Classification
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `missing_scope` from Slack | Bot token lacks required OAuth scopes | Add scopes in Slack app settings → reinstall → copy new token |
-| `403 Forbidden` from Qdrant | Invalid API key | Copy the API key from Qdrant Cloud dashboard → paste into `.env` |
-| `Port 8000 already in use` | Previous instance still running | Kill Python processes or use a different port |
-| `ModuleNotFoundError` | Dependencies not installed | Run `pip install -e ".[dev]"` |
-| `No module named 'src'` | Not running from project root | `cd` to the project directory first |
-| Slack catch-up returns 0 messages | Bot not invited to channel | Type `/invite @YourBotName` in the Slack channel |
+- **Slack ingest** — Polls a channel (and optionally DMs) for new messages, classifies each with an LLM
+- **Manual capture** — Multi-line textarea with `Ctrl+Enter` submit and character counter
+- **Duplicate detection** — 2-tier: exact content hash match + vector similarity ≥ 0.92
+- **AI classification** — Llama 3.1 8B classifies entries by type, project, PARA category, and tags
+- **Reclassify** — Re-run classification on any entry from its detail page
+- **Edit** — Inline editing of title, summary, type, project, PARA category, and tags
 
-## Usage
+### Entity Resolution & Knowledge Graph
 
-- **Dashboard** — Left panel shows the capture feed (newest first). Right panel has search + today's digest.
-- **Search** — Type in the search box for live dual search (vector similarity + keyword matching). Results show source badges: 🧲 vector, 🔤 keyword, 🧲🔤 both.
-- **Refresh** — Click 🔄 Refresh to pull new messages from Slack.
-- **Manual Capture** — Type a thought in the capture input and click 💾 Capture.
-- **Copy** — Click 📋 Copy on any search result to copy title + summary to clipboard.
-- **Slack Link** — Click 🔗 on any entry to open the original Slack message.
+- **3-tier entity matching** — Exact → fuzzy bigram → semantic embedding matching
+- **Entity pages** — Each entity has a detail page with backlinks, co-occurring entities, and timeline
+- **Knowledge graph** — Interactive D3.js force-directed graph showing entity connections
+- **Progressive summarization** — Generate LLM summaries for entities from their linked entries
+- **Relationship viewer** — See how entries connect through shared entities
+
+### Search & Recall
+
+- **Dual search** — Vector similarity (Qdrant) + keyword (SQLite FTS5) with merged, deduplicated results
+- **Recall** — Ask natural-language questions; retrieves relevant entries and generates an LLM-synthesized answer
+- **Filters** — Filter by entry type, entity, and PARA category
+- **Confidence scoring** — Visual confidence dots on search results
+
+### Reports
+
+- **Weekly Report** (`/reports/weekly`) — Entries grouped by day for the past 7 days, with type counts and navigation between weeks
+- **Project Report** (`/reports/projects`) — All projects with entry counts, top types, and date ranges; drill into any project for full entry list
+- **Trends Report** (`/reports/trends`) — 30-day sparkline activity, type distribution breakdown, most active entities, and a day-by-day activity heatmap
+
+### Insights
+
+- **Classification health** — Accuracy stats, unclassified queue with bulk reclassify
+- **Strategic entries** — Filtered views of risks, tasks, decisions, and strategy notes
+- **Type distribution** — Breakdown of entries by classification type
+
+### Eval Harness
+
+- **Model benchmarking** — Run classification eval against test data
+- **Run management** — Start, monitor, and abort eval runs from the UI
+
+### Slack Commands
+
+```
+/brain capture <text>    — Capture a thought
+/brain recall <query>    — Semantic recall
+/brain summarize week    — Weekly summary
+/brain prd <thread>      — Generate PRD from thread
+```
 
 ## Architecture
 
-See the [tech spec](_bmad-output/implementation-artifacts/tech-spec-second-brain-mvp-capture-recall.md) for full details.
+```
+Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF Llama 3.1 8B)
+                                │  │              │
+                                │  ▼              ▼
+                                │ Entity       Qdrant Cloud
+                                │ Resolver     (bge-small-en-v1.5, 384d)
+                                │  │
+                                ▼  ▼
+                             SQLite (FTS5)
+                                │
+                   ┌────────────┼────────────┐
+                   ▼            ▼            ▼
+              Dashboard    Reports    Knowledge Graph
+            (FastAPI + HTMX + Alpine.js + D3.js)
+```
 
-```
-Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF API)
-                                  │              │
-                                  ▼              ▼
-                              SQLite          Qdrant Cloud
-                             (FTS5)          (vectors)
-                                  │              │
-                                  └──────┬───────┘
-                                         ▼
-                                Dashboard (FastAPI + htmx)
-```
+### Key Components
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| Pipeline | `src/core/pipeline.py` | Orchestrates capture: classify → deduplicate → store → resolve entities |
+| Classifier | `src/classification/classifier.py` | LLM-based entry classification via HF Inference API |
+| Entity Resolver | `src/core/entity_resolution.py` | 3-tier entity matching and linking |
+| Graph Service | `src/core/graph.py` | Knowledge graph queries and co-occurrence analysis |
+| Suggestion Engine | `src/core/suggestions.py` | Related entry suggestions |
+| Summarization | `src/core/summarization.py` | Progressive entity summarization |
+| Repository | `src/storage/repository.py` | SQLite CRUD with FTS5 search |
+| Vector Store | `src/retrieval/vector_store.py` | Qdrant embedding storage and similarity search |
+| Routes | `src/api/routes.py` | All FastAPI route handlers |
+
+### Data Model
+
+All entries include: `id` (UUID), `type` (enum), `title`, `summary`, `raw_content`, `created_at`, `project` (nullable), `para_category`, `tags` (array), `embedding_vector_id`, `content_hash`, `novelty`.
 
 ## Development
 
 ```bash
-# Run tests
-pytest
-
-# Run with debug logging
-LOG_LEVEL=DEBUG second-brain
+pytest                        # Run tests (191 tests)
+pytest -x -q                  # Quick run, stop on first failure
+LOG_LEVEL=DEBUG second-brain  # Debug logging
 ```
 
 ## Entry Types
@@ -141,3 +170,13 @@ LOG_LEVEL=DEBUG second-brain
 | Strategy | 🎯 | Strategic thinking |
 | Note | 📝 | General notes |
 | Unclassified | ❓ | Classification failed (error state) |
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `missing_scope` from Slack | Bot token lacks required scopes | Add scopes in Slack app settings → reinstall → copy new token |
+| `403 Forbidden` from Qdrant | Invalid API key | Copy key from Qdrant Cloud dashboard → paste into `.env` |
+| `Port 8000 already in use` | Previous instance running | Kill Python processes or use a different port |
+| `ModuleNotFoundError` | Dependencies not installed | Run `pip install -e ".[dev]"` |
+| Slack catch-up returns 0 messages | Bot not invited to channel | `/invite @YourBotName` in the channel |
