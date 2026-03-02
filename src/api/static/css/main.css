@@ -612,11 +612,82 @@ a:hover { color: var(--accent-hover); }
 
 /* ── Capture Form ──────────────────────────────────────────────── */
 .capture-form {
-    display: flex;
-    gap: var(--sp-2);
     margin-bottom: var(--sp-4);
 }
 
+.capture-input-wrap {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+    overflow: hidden;
+}
+
+.capture-input-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.capture-textarea {
+    width: 100%;
+    padding: var(--sp-3) var(--sp-4);
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-family: var(--font-sans);
+    resize: none;
+    line-height: 1.6;
+    min-height: 52px;
+    max-height: 200px;
+}
+
+.capture-textarea:focus {
+    outline: none;
+}
+
+.capture-textarea::placeholder {
+    color: var(--text-dim);
+}
+
+.capture-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--bg);
+}
+
+.capture-hint {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+}
+
+.capture-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.capture-btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.capture-btn:active { transform: translateY(0); }
+
+.capture-btn-icon { font-size: 0.9rem; }
+
+/* Legacy single-line input (still used in search capture prompt) */
 .capture-input {
     flex: 1;
     padding: var(--sp-3) var(--sp-4);
@@ -634,21 +705,6 @@ a:hover { color: var(--accent-hover); }
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 
-.capture-btn {
-    background: var(--accent);
-    color: white;
-    border: none;
-    padding: var(--sp-3) var(--sp-5);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.88rem;
-    font-weight: 600;
-    font-family: var(--font-sans);
-    transition: background var(--transition-fast);
-}
-
-.capture-btn:hover { background: var(--accent-hover); }
-
 .capture-prompt {
     text-align: center;
     padding: var(--sp-8);
@@ -656,6 +712,22 @@ a:hover { color: var(--accent-hover); }
 }
 
 .capture-prompt p { margin-bottom: var(--sp-3); }
+
+/* ── Empty States ──────────────────────────────────────────────── */
+.empty-state {
+    text-align: center;
+    padding: var(--sp-10) var(--sp-6);
+    color: var(--text-muted);
+}
+
+.empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: var(--sp-3);
+    opacity: 0.4;
+}
+
+.empty-state p { margin-bottom: var(--sp-2); font-size: 0.88rem; }
+.empty-sub { font-size: 0.82rem; color: var(--text-dim); }
 
 /* ── Digest / Tags ─────────────────────────────────────────────── */
 .digest {
@@ -672,6 +744,59 @@ a:hover { color: var(--accent-hover); }
     background: var(--bg);
     border: 1px solid var(--border);
 }
+
+.digest-section { margin-top: var(--sp-5); }
+.recall-section { margin-top: var(--sp-5); margin-bottom: var(--sp-4); }
+.quick-nav { margin-top: var(--sp-5); }
+
+.section-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: var(--sp-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.panel-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: var(--sp-4);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* ── Search Filters ────────────────────────────────────────────── */
+.search-filters {
+    display: flex;
+    gap: var(--sp-2);
+    margin: var(--sp-2) 0 var(--sp-4) 0;
+}
+
+.search-filters .select {
+    min-width: 120px;
+    flex: 1;
+}
+
+/* ── Entry Card Footer ────────────────────────────────────────── */
+.entry-footer {
+    margin-top: var(--sp-2);
+}
+
+.entry-header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.meta-sep { color: var(--border); margin: 0 1px; }
+.meta-link { font-size: inherit; color: var(--accent); }
+.meta-para { font-weight: 500; }
+.meta-project { font-weight: 500; color: var(--text); }
 
 /* ── Detail Page ───────────────────────────────────────────────── */
 .detail-nav { margin-bottom: var(--sp-4); }
@@ -783,25 +908,36 @@ a:hover { color: var(--accent-hover); }
 
 /* ── Tools Grid ────────────────────────────────────────────────── */
 .tools-grid {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: var(--sp-2);
 }
 
 .tool-link {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: var(--sp-2);
-    padding: var(--sp-2) var(--sp-4);
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text);
     text-decoration: none;
     font-size: 0.85rem;
-    transition: border-color var(--transition-fast);
+    transition: border-color var(--transition-fast), background var(--transition-fast);
 }
-.tool-link:hover { border-color: var(--accent); color: var(--text); }
+
+.tool-link:hover {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
+.tool-icon { font-size: 1.25rem; flex-shrink: 0; }
+.tool-name { font-weight: 600; font-size: 0.82rem; }
+.tool-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; }
+
+/* Alpine.js cloak */
+[x-cloak] { display: none !important; }
 
 /* ── Eval Page ─────────────────────────────────────────────────── */
 .eval-run-controls {

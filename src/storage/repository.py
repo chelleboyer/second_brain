@@ -1,5 +1,6 @@
 """Brain entry repository — CRUD operations via explicit SQL."""
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from uuid import UUID
@@ -21,6 +22,9 @@ class BrainEntryRepository:
 
     async def save(self, entry: BrainEntry) -> BrainEntry:
         """Save a brain entry. Skips silently if slack_ts already exists."""
+        content_hash = hashlib.sha256(
+            entry.raw_content.strip().lower().encode()
+        ).hexdigest()
         async with self.db.get_connection() as conn:
             await conn.execute(
                 """
@@ -30,8 +34,8 @@ class BrainEntryRepository:
                     slack_permalink, author_id, author_name, thread_ts,
                     reply_count, archived_at, source,
                     para_category, confidence, extracted_entities,
-                    novelty, augments_entry_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    novelty, augments_entry_id, content_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(entry.id),
@@ -56,6 +60,7 @@ class BrainEntryRepository:
                     json.dumps(entry.extracted_entities),
                     entry.novelty.value,
                     str(entry.augments_entry_id) if entry.augments_entry_id else None,
+                    content_hash,
                 ),
             )
             await conn.commit()
@@ -295,6 +300,33 @@ class BrainEntryRepository:
             )
             rows = await cursor.fetchall()
             return [{"day": row["day"], "count": row["count"]} for row in rows]
+
+    async def update_novelty(
+        self, entry_id: UUID, novelty: NoveltyVerdict, augments_id: UUID | None
+    ) -> None:
+        """Update the novelty verdict and augments link for an entry."""
+        async with self.db.get_connection() as conn:
+            await conn.execute(
+                "UPDATE brain_entries SET novelty = ?, augments_entry_id = ? WHERE id = ?",
+                (
+                    novelty.value,
+                    str(augments_id) if augments_id else None,
+                    str(entry_id),
+                ),
+            )
+            await conn.commit()
+
+    async def find_by_content_hash(self, content_hash: str) -> BrainEntry | None:
+        """Find an existing entry with the same content hash (exact duplicate check)."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "SELECT * FROM brain_entries WHERE content_hash = ? LIMIT 1",
+                (content_hash,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            return self._row_to_entry(row)
 
     @staticmethod
     def _row_to_entry(row) -> BrainEntry:

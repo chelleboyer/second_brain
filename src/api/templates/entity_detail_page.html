@@ -118,9 +118,12 @@
                 <h3>🤝 Co-occurring Entities</h3>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
                     {% for coent in cooccurrence %}
-                        <a href="/entities?q={{ coent.name }}" class="type-chip chip-blue"
+                        {% set co_entity = coent.entity %}
+                        {% set co_ed = entity_display.get(co_entity.entity_type) %}
+                        <a href="/entity/{{ co_entity.id }}" class="entity-pill"
                            style="text-decoration: none; cursor: pointer;">
-                            {{ coent.name }} ({{ coent.count }})
+                            {% if co_ed %}{{ co_ed.emoji }}{% endif %} {{ co_entity.name }}
+                            <span style="opacity: 0.6;">({{ coent.shared_entries }})</span>
                         </a>
                     {% endfor %}
                 </div>

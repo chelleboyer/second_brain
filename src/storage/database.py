@@ -174,6 +174,7 @@ class Database:
                 ("brain_entries", "extracted_entities", "TEXT NOT NULL DEFAULT '[]'"),
                 ("brain_entries", "novelty", "TEXT NOT NULL DEFAULT 'new'"),
                 ("brain_entries", "augments_entry_id", "TEXT"),
+                ("brain_entries", "content_hash", "TEXT"),
             ]
             for table, column, col_type in migration_columns:
                 try:

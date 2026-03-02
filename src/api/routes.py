@@ -16,6 +16,7 @@ from src.models.enums import (
     CLASSIFIABLE_TYPES,
     EntryType,
     EntityType,
+    NoveltyVerdict,
     PARACategory,
 )
 
@@ -91,6 +92,9 @@ async def dashboard(
     digest = await app_state.repository.get_digest(today)
     counts = await app_state.repository.count_all()
 
+    # Populate entity list for search filter dropdown
+    all_entities = await app_state.entity_repo.get_all_entities()
+
     return templates.TemplateResponse(
         "dashboard.html",
         _shared_ctx(
@@ -100,6 +104,7 @@ async def dashboard(
             counts=counts,
             active_type=type,
             show_archived=show_archived,
+            all_entities=all_entities,
         ),
     )
 
@@ -172,10 +177,28 @@ async def search(
 
 @router.post("/capture", response_class=HTMLResponse)
 async def capture(request: Request, text: str = Form(...)) -> HTMLResponse:
-    """Manual capture from the dashboard — classify, embed, store."""
+    """Manual capture from the dashboard — classify, embed, store.
+
+    If the content is a near-duplicate, returns a duplicate notice instead
+    of creating a new entry.
+    """
     log.info("manual_capture_triggered", text_length=len(text))
 
     entry = await app_state.pipeline.capture_manual(text)
+
+    # If duplicate was detected, return a notice linking to the existing entry
+    if entry.novelty == NoveltyVerdict.DUPLICATE:
+        return HTMLResponse(
+            f'<div class="entry-card" style="border-left: 3px solid var(--gold); padding: 12px;">'
+            f'<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">'
+            f'<span class="novelty-badge novelty-duplicate">♻ Duplicate detected</span>'
+            f'<span style="font-size: 0.85rem; color: var(--text-muted);">This thought is already captured.</span>'
+            f'</div>'
+            f'<a href="/entry/{entry.id}" class="entry-title" style="font-size: 0.88rem;">'
+            f'{entry.title}</a>'
+            f'<div class="entry-summary">{entry.summary}</div>'
+            f'</div>'
+        )
 
     return templates.TemplateResponse(
         "partials/entry_card.html",
@@ -741,18 +764,29 @@ async def entry_relationships(request: Request, entry_id: str) -> HTMLResponse:
         UUID(entry_id)
     )
 
-    # Resolve entry references for display
+    # The graph service returns {"relationship": ..., "target": BrainEntry}
+    # and {"relationship": ..., "source": BrainEntry}. Flatten for template.
     outgoing = []
     for rel in detail.get("outgoing", []):
-        target = await app_state.repository.get_by_id(rel["target_entry_id"])
+        target = rel.get("target")
         if target:
-            outgoing.append({**rel, "target_entry": target})
+            outgoing.append({
+                "relationship_type": rel["relationship"].relationship_type,
+                "confidence": rel["relationship"].confidence,
+                "reason": rel["relationship"].reason,
+                "target_entry": target,
+            })
 
     incoming = []
     for rel in detail.get("incoming", []):
-        source = await app_state.repository.get_by_id(rel["source_entry_id"])
+        source = rel.get("source")
         if source:
-            incoming.append({**rel, "source_entry": source})
+            incoming.append({
+                "relationship_type": rel["relationship"].relationship_type,
+                "confidence": rel["relationship"].confidence,
+                "reason": rel["relationship"].reason,
+                "source_entry": source,
+            })
 
     return templates.TemplateResponse(
         "partials/relationships.html",

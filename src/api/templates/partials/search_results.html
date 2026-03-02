@@ -1,9 +1,19 @@
 {% for result in results %}
 {% set entry = result.entry %}
 {% set display = type_display.get(entry.type) %}
-<div class="entry-card" id="entry-{{ entry.id }}">
+{% set para = entry.para_category.value if entry.para_category else 'resource' %}
+<div class="entry-card para-{{ para }}" id="entry-{{ entry.id }}">
     <div class="entry-header">
-        <div>
+        <div class="entry-header-left">
+            {% if entry.confidence is not none %}
+                {% if entry.confidence >= 0.7 %}
+                    <span class="confidence-dot conf-high" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% elif entry.confidence >= 0.4 %}
+                    <span class="confidence-dot conf-medium" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% else %}
+                    <span class="confidence-dot conf-low" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% endif %}
+            {% endif %}
             {% if display %}
                 <span class="type-chip chip-{{ display.color }}">{{ display.emoji }} {{ display.label }}</span>
             {% endif %}
@@ -34,11 +44,23 @@
         </div>
     </div>
     <div class="entry-summary">{{ entry.summary }}</div>
-    <div class="entry-meta">
-        {{ entry.author_name }} · {{ relative_time(entry.created_at) }}
-        {% if entry.reply_count > 0 %}
-            · 💬 {{ entry.reply_count }} replies
+    <div class="entry-footer">
+        {% if entry.extracted_entities %}
+        <div class="entity-pills">
+            {% for ent in entry.extracted_entities %}
+                <a href="/entities?q={{ ent }}" class="entity-pill">{{ ent }}</a>
+            {% endfor %}
+        </div>
         {% endif %}
+        <div class="entry-meta">
+            {{ entry.author_name }}
+            <span class="meta-sep">·</span>
+            {{ relative_time(entry.created_at) }}
+            {% if entry.reply_count > 0 %}
+                <span class="meta-sep">·</span>
+                💬 {{ entry.reply_count }}
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endfor %}

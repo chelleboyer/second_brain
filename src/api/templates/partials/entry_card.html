@@ -3,7 +3,7 @@
 <div class="entry-card para-{{ para }}{% if entry.archived_at %} entry-archived{% endif %}"
      id="entry-{{ entry.id }}">
     <div class="entry-header">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <div class="entry-header-left">
             <!-- Confidence dot -->
             {% if entry.confidence is not none %}
                 {% if entry.confidence >= 0.7 %}
@@ -21,7 +21,7 @@
 
             <!-- Novelty badge -->
             {% if entry.novelty and entry.novelty.value == 'augment' %}
-                <span class="novelty-badge novelty-augment">↗ Augment</span>
+                <span class="novelty-badge novelty-augment" title="This entry adds to existing knowledge">↗ Augment</span>
             {% elif entry.novelty and entry.novelty.value == 'duplicate' %}
                 <span class="novelty-badge novelty-duplicate">♻ Dup</span>
             {% endif %}
@@ -81,46 +81,44 @@
 
     <div class="entry-summary">{{ entry.summary }}</div>
 
-    <!-- Entity pills -->
-    {% if entry.extracted_entities %}
-    <div class="entity-pills">
-        {% for ent in entry.extracted_entities %}
-            <a href="/entities?q={{ ent }}" class="entity-pill" title="View entity">🏗️ {{ ent }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
+    <!-- Entity pills + meta in one row -->
+    <div class="entry-footer">
+        {% if entry.extracted_entities %}
+        <div class="entity-pills">
+            {% for ent in entry.extracted_entities %}
+                <a href="/entities?q={{ ent }}" class="entity-pill" title="View entity">{{ ent }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
 
-    <div class="entry-meta">
-        <span>{{ entry.author_name }}</span>
-        <span>·</span>
-        <span>{{ relative_time(entry.created_at) }}</span>
-        {% if entry.para_category %}
-            {% set pd = para_display.get(entry.para_category) %}
-            {% if pd %}
-                <span>·</span>
-                <span>{{ pd.emoji }} {{ pd.label }}</span>
+        <div class="entry-meta">
+            <span>{{ entry.author_name }}</span>
+            <span class="meta-sep">·</span>
+            <span>{{ relative_time(entry.created_at) }}</span>
+            {% if entry.para_category %}
+                {% set pd = para_display.get(entry.para_category) %}
+                {% if pd %}
+                    <span class="meta-sep">·</span>
+                    <span class="meta-para">{{ pd.emoji }} {{ pd.label }}</span>
+                {% endif %}
             {% endif %}
-        {% endif %}
-        {% if entry.project %}
-            <span>·</span>
-            <span>📁 {{ entry.project }}</span>
-        {% endif %}
-        {% if entry.reply_count and entry.reply_count > 0 %}
-            <span>·</span>
-            <span>💬 {{ entry.reply_count }}</span>
-        {% endif %}
-        {% if entry.source == "manual" %}
-            <span>·</span>
-            <span>✍️ Manual</span>
-        {% endif %}
-        {% if entry.archived_at %}
-            <span>·</span>
-            <span>📦 Archived</span>
-        {% endif %}
-        {% if entry.augments_entry_id %}
-            <span>·</span>
-            <span>↗ Augments <a href="/entry/{{ entry.augments_entry_id }}" style="font-size: inherit;">previous</a></span>
-        {% endif %}
+            {% if entry.project %}
+                <span class="meta-sep">·</span>
+                <span class="meta-project">📁 {{ entry.project }}</span>
+            {% endif %}
+            {% if entry.reply_count and entry.reply_count > 0 %}
+                <span class="meta-sep">·</span>
+                <span>💬 {{ entry.reply_count }}</span>
+            {% endif %}
+            {% if entry.source == "manual" %}
+                <span class="meta-sep">·</span>
+                <span>✍️</span>
+            {% endif %}
+            {% if entry.augments_entry_id %}
+                <span class="meta-sep">·</span>
+                <span>↗ <a href="/entry/{{ entry.augments_entry_id }}" class="meta-link">augments</a></span>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Suggestions (lazy-loaded) -->

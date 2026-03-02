@@ -21,21 +21,43 @@
             <div class="stat-label">Captured today</div>
         </div>
     {% endif %}
+    {% if all_entities %}
+    <div class="stat-card">
+        <div class="stat-value" style="color: var(--purple);">{{ all_entities|length }}</div>
+        <div class="stat-label">Entities tracked</div>
+    </div>
+    {% endif %}
 </div>
 
 <div class="panel-grid">
     <!-- Left column: Capture feed -->
     <div class="panel">
-        <h2>📥 Capture Feed
+        <h2 class="panel-title">
+            <span>📥 Capture Feed</span>
             {% if counts %}
                 <span class="count-badge">{{ counts.active }} active{% if counts.archived %} · {{ counts.archived }} archived{% endif %}</span>
             {% endif %}
         </h2>
 
-        <!-- Manual capture form -->
-        <form class="capture-form" hx-post="/capture" hx-target="#feed-entries" hx-swap="afterbegin">
-            <input type="text" name="text" class="capture-input" placeholder="Capture a thought..." required>
-            <button type="submit" class="capture-btn">💾 Capture</button>
+        <!-- Manual capture form — textarea for real thoughts -->
+        <form class="capture-form" hx-post="/capture" hx-target="#feed-entries" hx-swap="afterbegin"
+              x-data="{ text: '', rows: 1 }"
+              @keydown.ctrl.enter="$el.requestSubmit()"
+              @keydown.meta.enter="$el.requestSubmit()">
+            <div class="capture-input-wrap">
+                <textarea name="text" class="capture-textarea" placeholder="What's on your mind? (Ctrl+Enter to submit)"
+                          required rows="2"
+                          x-model="text"
+                          @input="rows = Math.min(6, text.split('\n').length + 1); $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"></textarea>
+                <div class="capture-actions">
+                    <span class="capture-hint" x-show="text.length > 0" x-cloak>
+                        <span x-text="text.length"></span> chars
+                    </span>
+                    <button type="submit" class="capture-btn">
+                        <span class="capture-btn-icon">⚡</span> Capture
+                    </button>
+                </div>
+            </div>
         </form>
 
         <!-- Type filter tabs -->
@@ -47,14 +69,14 @@
                 {% set td = type_display.get(t) %}
                 <a href="/?type={{ t.value }}&show_archived={{ show_archived }}"
                    class="filter-tab {% if active_type == t.value %}active{% endif %}"
-                   title="{{ td.label }}">{{ td.emoji }}</a>
+                   title="{{ td.label }}">{{ td.emoji }} {{ td.label }}</a>
                 {% endif %}
             {% endfor %}
             <span class="filter-separator">|</span>
             {% if show_archived %}
                 <a href="/?type={{ active_type }}" class="filter-tab active">📦 Archived</a>
             {% else %}
-                <a href="/?type={{ active_type }}&show_archived=true" class="filter-tab">📦 Archived</a>
+                <a href="/?type={{ active_type }}&show_archived=true" class="filter-tab">📦 Archive</a>
             {% endif %}
         </div>
 
@@ -63,23 +85,28 @@
                 {% include "partials/entry_card.html" %}
             {% endfor %}
             {% if not entries %}
-                <div class="capture-prompt">
+                <div class="empty-state">
                     {% if show_archived %}
+                        <div class="empty-icon">📦</div>
                         <p>No archived entries.</p>
                     {% elif active_type %}
+                        <div class="empty-icon">🔍</div>
                         <p>No entries of this type yet.</p>
                     {% else %}
-                        <p>No entries yet. Capture your first thought above or click Refresh to pull from Slack.</p>
+                        <div class="empty-icon">🧠</div>
+                        <p>Your second brain is empty.</p>
+                        <p class="empty-sub">Capture your first thought above or click <strong>Refresh</strong> to pull from Slack.</p>
                     {% endif %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Right column: Search + Digest -->
+    <!-- Right column: Intelligence Panel -->
     <div class="panel">
-        <h2>🔍 Search & Recall</h2>
+        <h2 class="panel-title"><span>🔍 Intelligence</span></h2>
 
+        <!-- Search -->
         <div class="search-container">
             <span class="search-icon">🔍</span>
             <input type="text"
@@ -93,27 +120,34 @@
         </div>
 
         <!-- Search filters -->
-        <div style="display: flex; gap: 8px; margin: 8px 0 16px 0;">
-            <select name="search-type" class="select" style="min-width: 100px;">
+        <div class="search-filters">
+            <select name="search-type" class="select">
                 <option value="">All types</option>
                 {% for t in entry_types %}
                     {% set td = type_display.get(t) %}
                     <option value="{{ t.value }}">{{ td.emoji }} {{ td.label }}</option>
                 {% endfor %}
             </select>
-            <select name="search-entity" class="select" style="min-width: 100px;">
+            <select name="search-entity" class="select">
                 <option value="">All entities</option>
+                {% for ent in all_entities %}
+                    {% set ed = entity_display.get(ent.entity_type) %}
+                    <option value="{{ ent.name }}">{{ ed.emoji if ed }} {{ ent.name }} ({{ ent.entry_count }})</option>
+                {% endfor %}
             </select>
         </div>
 
-        <!-- Recall toggle -->
-        <div style="margin-bottom: 12px;">
+        <div id="search-results"></div>
+
+        <!-- Recall -->
+        <div class="recall-section">
+            <h3 class="section-label">💡 Ask Your Knowledge</h3>
             <div class="search-container">
                 <span class="search-icon">💡</span>
                 <input type="text"
                        class="search-box"
                        name="recall-q"
-                       placeholder="Ask your knowledge base a question..."
+                       placeholder="Ask a question about your captured knowledge..."
                        hx-get="/recall"
                        hx-trigger="keyup changed delay:500ms"
                        hx-target="#recall-results"
@@ -123,32 +157,58 @@
             <div id="recall-results"></div>
         </div>
 
-        <div id="search-results"></div>
-
         <!-- Digest counter -->
         {% if digest %}
-        <h2 style="margin-top: 24px;">📊 Today's Digest</h2>
-        <div class="digest">
-            {% for type_key, count in digest.items() %}
-                {% set display = type_display.get(type_key) %}
-                {% if display %}
-                    <span class="digest-item chip-{{ display.color }}">
-                        {{ display.emoji }} {{ display.label }}: {{ count }}
-                    </span>
-                {% else %}
-                    <span class="digest-item">{{ type_key }}: {{ count }}</span>
-                {% endif %}
-            {% endfor %}
+        <div class="digest-section">
+            <h3 class="section-label">📊 Today's Digest</h3>
+            <div class="digest">
+                {% for type_key, count in digest.items() %}
+                    {% set display = type_display.get(type_key) %}
+                    {% if display %}
+                        <span class="digest-item chip-{{ display.color }}">
+                            {{ display.emoji }} {{ display.label }}: {{ count }}
+                        </span>
+                    {% else %}
+                        <span class="digest-item">{{ type_key }}: {{ count }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
 
         <!-- Quick links -->
-        <h2 style="margin-top: 24px;">🛠 Quick Links</h2>
-        <div class="tools-grid">
-            <a href="/entities" class="tool-link">🏗️ Entities</a>
-            <a href="/graph" class="tool-link">🔗 Knowledge Graph</a>
-            <a href="/insights" class="tool-link">📈 Insights</a>
-            <a href="/eval" class="tool-link">🧪 Eval Harness</a>
+        <div class="quick-nav">
+            <h3 class="section-label">⚡ Quick Access</h3>
+            <div class="tools-grid">
+                <a href="/entities" class="tool-link">
+                    <span class="tool-icon">🏗️</span>
+                    <div>
+                        <div class="tool-name">Entities</div>
+                        <div class="tool-desc">{{ all_entities|length if all_entities else 0 }} tracked</div>
+                    </div>
+                </a>
+                <a href="/graph" class="tool-link">
+                    <span class="tool-icon">🔗</span>
+                    <div>
+                        <div class="tool-name">Knowledge Graph</div>
+                        <div class="tool-desc">Visualize connections</div>
+                    </div>
+                </a>
+                <a href="/insights" class="tool-link">
+                    <span class="tool-icon">📈</span>
+                    <div>
+                        <div class="tool-name">Insights</div>
+                        <div class="tool-desc">Brain health</div>
+                    </div>
+                </a>
+                <a href="/eval" class="tool-link">
+                    <span class="tool-icon">🧪</span>
+                    <div>
+                        <div class="tool-name">Eval Harness</div>
+                        <div class="tool-desc">Model benchmarks</div>
+                    </div>
+                </a>
+            </div>
         </div>
 
         <!-- Unclassified alert (lazy-loaded) -->

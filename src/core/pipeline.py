@@ -1,5 +1,10 @@
 """Capture pipeline — collect → classify → extract entities → resolve novelty → embed → store → suggest."""
 
+from __future__ import annotations
+
+import hashlib
+from typing import TYPE_CHECKING
+
 import structlog
 
 from src.classification.classifier import Classifier
@@ -12,7 +17,13 @@ from src.retrieval.vector_store import VectorStore
 from src.slack.collector import SlackCollector
 from src.storage.repository import BrainEntryRepository
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
 log = structlog.get_logger(__name__)
+
+# Similarity threshold for content-level duplicate detection (0-1)
+DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 
 
 class CapturePipeline:
@@ -63,123 +74,18 @@ class CapturePipeline:
                     text
                 )
 
-                # Build entry with enhanced classification fields
-                entry_type = extraction.get("type", EntryType.UNCLASSIFIED)
-                if isinstance(entry_type, str):
-                    try:
-                        entry_type = EntryType(entry_type)
-                    except ValueError:
-                        entry_type = EntryType.UNCLASSIFIED
-
-                para_category = extraction.get("para_category", PARACategory.RESOURCE)
-                if isinstance(para_category, str):
-                    try:
-                        para_category = PARACategory(para_category)
-                    except ValueError:
-                        para_category = PARACategory.RESOURCE
-
-                # Build tags from type + keywords
-                tags = [entry_type.value]
-                keywords = extraction.get("keywords", [])
-                if keywords:
-                    tags.extend(keywords)
-
-                entry = BrainEntry(
-                    type=entry_type,
-                    title=extraction.get("title", text[:60]),
-                    summary=extraction.get("summary", text[:200]),
-                    raw_content=text,
-                    project=extraction.get("project"),
-                    tags=tags,
-                    slack_ts=ts or None,
-                    slack_permalink=msg.get("permalink") or None,
+                entry = await self._build_and_store_entry(
+                    text=text,
+                    extraction=extraction,
+                    embedding=embedding,
+                    source="slack",
                     author_id=msg.get("user", "unknown"),
                     author_name=msg.get("user_name", "Unknown"),
+                    slack_ts=ts or None,
+                    slack_permalink=msg.get("permalink") or None,
                     thread_ts=msg.get("thread_ts"),
                     reply_count=msg.get("reply_count", 0),
-                    source="slack",
-                    para_category=para_category,
-                    confidence=extraction.get("confidence", 0.0),
-                    extracted_entities=[
-                        e.get("name", "") for e in extraction.get("entities", [])
-                    ],
                 )
-
-                # Store in SQLite
-                await self.repository.save(entry)
-
-                # Entity resolution (if available)
-                resolved = []
-                if self.entity_resolver and extraction.get("entities"):
-                    try:
-                        resolved = await self.entity_resolver.resolve_entities(
-                            extraction["entities"], entry.id
-                        )
-                        # Assess novelty
-                        novelty, augments_id = (
-                            await self.entity_resolver.assess_novelty(
-                                resolved, entry.id
-                            )
-                        )
-                        if novelty != NoveltyVerdict.NEW:
-                            entry.novelty = novelty
-                            entry.augments_entry_id = augments_id
-                            # Update the entry in DB with novelty info
-                            async with self.repository.db.get_connection() as conn:
-                                await conn.execute(
-                                    "UPDATE brain_entries SET novelty = ?, augments_entry_id = ? WHERE id = ?",
-                                    (novelty.value, str(augments_id) if augments_id else None, str(entry.id)),
-                                )
-                                await conn.commit()
-
-                            # Auto-create relationship if augmenting
-                            if augments_id and self.entity_repo:
-                                rel = EntryRelationship(
-                                    source_entry_id=entry.id,
-                                    target_entry_id=augments_id,
-                                    relationship_type=RelationshipType.EVOLVES,
-                                    confidence=entry.confidence,
-                                    reason=f"Shares entities: {', '.join(e.name for e in resolved)}",
-                                )
-                                await self.entity_repo.save_relationship(rel)
-                    except Exception as e:
-                        log.warning(
-                            "entity_resolution_failed",
-                            entry_id=str(entry.id),
-                            error=str(e),
-                        )
-
-                # Store embedding in Qdrant (if available)
-                if embedding:
-                    await self.vector_store.upsert(
-                        id=str(entry.id),
-                        vector=embedding,
-                        payload={
-                            "entry_type": entry.type.value,
-                            "para_category": entry.para_category.value,
-                            "created_at": entry.created_at.isoformat(),
-                        },
-                    )
-                    entry.embedding_vector_id = str(entry.id)
-
-                # Phase 2: Generate smart suggestions (non-blocking)
-                if self.suggestion_engine:
-                    try:
-                        suggestions = await self.suggestion_engine.generate_suggestions(
-                            entry, resolved
-                        )
-                        if suggestions:
-                            log.info(
-                                "suggestions_generated",
-                                entry_id=str(entry.id),
-                                count=len(suggestions),
-                            )
-                    except Exception as e:
-                        log.warning(
-                            "suggestion_generation_failed",
-                            entry_id=str(entry.id),
-                            error=str(e),
-                        )
 
                 processed += 1
                 log.info(
@@ -234,12 +140,61 @@ class CapturePipeline:
     ) -> BrainEntry:
         """Capture a manual entry from the dashboard (no Slack origin).
 
-        Classifies, embeds, resolves entities, and stores with source='manual'.
+        Classifies, embeds, resolves entities, checks for duplicates, and stores
+        with source='manual'.
         """
         log.info("manual_capture_started", text_length=len(text))
 
         extraction, embedding = await self.classifier.classify_and_embed(text)
 
+        # Check for content-level duplicate before storing
+        duplicate = await self._check_content_duplicate(text, embedding)
+        if duplicate:
+            log.info(
+                "manual_capture_duplicate_detected",
+                duplicate_of=str(duplicate.id),
+                title=duplicate.title,
+            )
+            # Mark the duplicate and return it so the UI can show the duplicate verdict
+            duplicate.novelty = NoveltyVerdict.DUPLICATE
+            return duplicate
+
+        entry = await self._build_and_store_entry(
+            text=text,
+            extraction=extraction,
+            embedding=embedding,
+            source="manual",
+            author_id="manual",
+            author_name=author_name,
+        )
+
+        log.info(
+            "manual_capture_complete",
+            entry_id=str(entry.id),
+            type=entry.type.value,
+            para_category=entry.para_category.value,
+            novelty=entry.novelty.value,
+            title=entry.title,
+        )
+        return entry
+
+    # ── Shared pipeline helpers ──────────────────────────────────
+
+    async def _build_and_store_entry(
+        self,
+        *,
+        text: str,
+        extraction: dict,
+        embedding: list[float],
+        source: str,
+        author_id: str,
+        author_name: str,
+        slack_ts: str | None = None,
+        slack_permalink: str | None = None,
+        thread_ts: str | None = None,
+        reply_count: int = 0,
+    ) -> BrainEntry:
+        """Build, classify, resolve entities, embed, store, and suggest — shared logic."""
         entry_type = extraction.get("type", EntryType.UNCLASSIFIED)
         if isinstance(entry_type, str):
             try:
@@ -266,11 +221,13 @@ class CapturePipeline:
             raw_content=text,
             project=extraction.get("project"),
             tags=tags,
-            slack_ts=None,
-            slack_permalink=None,
-            author_id="manual",
+            slack_ts=slack_ts,
+            slack_permalink=slack_permalink,
+            author_id=author_id,
             author_name=author_name,
-            source="manual",
+            thread_ts=thread_ts,
+            reply_count=reply_count,
+            source=source,
             para_category=para_category,
             confidence=extraction.get("confidence", 0.0),
             extracted_entities=[
@@ -278,9 +235,50 @@ class CapturePipeline:
             ],
         )
 
+        # Store in SQLite
         await self.repository.save(entry)
 
         # Entity resolution (if available)
+        resolved = await self._resolve_entities(entry, extraction)
+
+        # Store embedding in Qdrant (if available)
+        if embedding:
+            await self.vector_store.upsert(
+                id=str(entry.id),
+                vector=embedding,
+                payload={
+                    "entry_type": entry.type.value,
+                    "para_category": entry.para_category.value,
+                    "created_at": entry.created_at.isoformat(),
+                },
+            )
+            entry.embedding_vector_id = str(entry.id)
+
+        # Generate smart suggestions (non-blocking)
+        if self.suggestion_engine:
+            try:
+                suggestions = await self.suggestion_engine.generate_suggestions(
+                    entry, resolved
+                )
+                if suggestions:
+                    log.info(
+                        "suggestions_generated",
+                        entry_id=str(entry.id),
+                        count=len(suggestions),
+                    )
+            except Exception as e:
+                log.warning(
+                    "suggestion_generation_failed",
+                    entry_id=str(entry.id),
+                    error=str(e),
+                )
+
+        return entry
+
+    async def _resolve_entities(
+        self, entry: BrainEntry, extraction: dict
+    ) -> list:
+        """Run entity resolution and novelty assessment on an entry."""
         resolved = []
         if self.entity_resolver and extraction.get("entities"):
             try:
@@ -293,13 +291,10 @@ class CapturePipeline:
                 if novelty != NoveltyVerdict.NEW:
                     entry.novelty = novelty
                     entry.augments_entry_id = augments_id
-                    async with self.repository.db.get_connection() as conn:
-                        await conn.execute(
-                            "UPDATE brain_entries SET novelty = ?, augments_entry_id = ? WHERE id = ?",
-                            (novelty.value, str(augments_id) if augments_id else None, str(entry.id)),
-                        )
-                        await conn.commit()
-
+                    await self.repository.update_novelty(
+                        entry.id, novelty, augments_id
+                    )
+                    # Auto-create EVOLVES relationship
                     if augments_id and self.entity_repo:
                         rel = EntryRelationship(
                             source_entry_id=entry.id,
@@ -315,45 +310,46 @@ class CapturePipeline:
                     entry_id=str(entry.id),
                     error=str(e),
                 )
+        return resolved
 
+    async def _check_content_duplicate(
+        self,
+        text: str,
+        embedding: list[float],
+    ) -> BrainEntry | None:
+        """Check if content is a near-duplicate of an existing entry.
+
+        Uses two strategies:
+        1. Content hash — exact match on normalized text
+        2. Vector similarity — near-identical embedding (>= DUPLICATE_SIMILARITY_THRESHOLD)
+
+        Returns the existing entry if duplicate, None otherwise.
+        """
+        # Strategy 1: exact content hash
+        content_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
+        existing = await self.repository.find_by_content_hash(content_hash)
+        if existing:
+            return existing
+
+        # Strategy 2: vector similarity (near-duplicates)
         if embedding:
-            await self.vector_store.upsert(
-                id=str(entry.id),
-                vector=embedding,
-                payload={
-                    "entry_type": entry.type.value,
-                    "para_category": entry.para_category.value,
-                    "created_at": entry.created_at.isoformat(),
-                },
-            )
-            entry.embedding_vector_id = str(entry.id)
-
-        # Phase 2: Generate smart suggestions (non-blocking)
-        suggestions = []
-        if self.suggestion_engine:
             try:
-                suggestions = await self.suggestion_engine.generate_suggestions(
-                    entry, resolved
+                from src.retrieval.vector_store import VectorStore
+                results = await self.vector_store.search(
+                    embedding, limit=3
                 )
-                if suggestions:
-                    log.info(
-                        "manual_capture_suggestions",
-                        entry_id=str(entry.id),
-                        count=len(suggestions),
-                    )
+                for entry_id_str, score in results:
+                    if score >= DUPLICATE_SIMILARITY_THRESHOLD:
+                        from uuid import UUID
+                        dup = await self.repository.get_by_id(UUID(entry_id_str))
+                        if dup:
+                            log.info(
+                                "near_duplicate_detected",
+                                score=score,
+                                existing_title=dup.title,
+                            )
+                            return dup
             except Exception as e:
-                log.warning(
-                    "suggestion_generation_failed",
-                    entry_id=str(entry.id),
-                    error=str(e),
-                )
+                log.debug("duplicate_vector_check_failed", error=str(e))
 
-        log.info(
-            "manual_capture_complete",
-            entry_id=str(entry.id),
-            type=entry.type.value,
-            para_category=entry.para_category.value,
-            novelty=entry.novelty.value,
-            title=entry.title,
-        )
-        return entry
+        return None
