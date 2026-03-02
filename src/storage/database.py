@@ -165,6 +165,26 @@ class Database:
                 ON entity_summaries(entity_id)
             """)
 
+            # ── Migrations: add columns to existing tables ───────
+            # SQLite's CREATE TABLE IF NOT EXISTS won't add new columns
+            # to an already-existing table, so we ALTER TABLE instead.
+            migration_columns = [
+                ("brain_entries", "para_category", "TEXT NOT NULL DEFAULT 'resource'"),
+                ("brain_entries", "confidence", "REAL NOT NULL DEFAULT 0.0"),
+                ("brain_entries", "extracted_entities", "TEXT NOT NULL DEFAULT '[]'"),
+                ("brain_entries", "novelty", "TEXT NOT NULL DEFAULT 'new'"),
+                ("brain_entries", "augments_entry_id", "TEXT"),
+            ]
+            for table, column, col_type in migration_columns:
+                try:
+                    await conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+                    )
+                    log.info("migration_added_column", table=table, column=column)
+                except Exception:
+                    # Column already exists — safe to ignore
+                    pass
+
             # App state table for tracking last processed timestamp
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS app_state (

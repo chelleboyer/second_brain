@@ -1,7 +1,10 @@
 """Progressive summarization — per-entity rollups and cross-entity strategic summaries."""
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import structlog
@@ -10,6 +13,9 @@ from src.core.entity_resolution import EntityRepository
 from src.models.brain_entry import BrainEntry, Entity, EntitySummary
 from src.storage.database import Database
 from src.storage.repository import BrainEntryRepository
+
+if TYPE_CHECKING:
+    from src.classification.provider import LLMProvider
 
 log = structlog.get_logger(__name__)
 
@@ -80,7 +86,7 @@ class SummarizationService:
         entity_repo: EntityRepository,
         entry_repo: BrainEntryRepository,
         db: Database,
-        provider: "LLMProvider | None" = None,
+        provider: LLMProvider | None = None,
     ) -> None:
         self.entity_repo = entity_repo
         self.entry_repo = entry_repo
@@ -254,6 +260,7 @@ class SummarizationService:
         )
 
         try:
+            assert self.provider is not None
             result = await self.provider.classify_and_extract(prompt)
             # The provider returns a dict; we just want the raw text response.
             # Use the summary field or fall back to title.
@@ -292,6 +299,7 @@ class SummarizationService:
         )
 
         try:
+            assert self.provider is not None
             result = await self.provider.classify_and_extract(prompt)
             return result.get("summary", result.get("title", ""))
         except Exception as e:
@@ -352,6 +360,7 @@ class SummarizationService:
         )
 
         try:
+            assert self.provider is not None
             result = await self.provider.classify_and_extract(prompt)
             summary_text = result.get("summary", result.get("title", ""))
             log.info(

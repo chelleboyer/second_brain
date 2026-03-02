@@ -193,6 +193,7 @@ class TestSummaryCRUD:
         await summ_service.save_entity_summary(s1)
 
         fetched = await summ_service.get_entity_summary(entity_id)
+        assert fetched is not None
         assert fetched.summary_text == "Updated version."
         assert fetched.entry_count_at_summary == 5
 
@@ -299,6 +300,7 @@ class TestSummarization:
         mock_provider.classify_and_extract.reset_mock()
 
         result = await summ_service.summarize_entity(entity.id)
+        assert result is not None
         assert result.summary_text == "Already current."
         # Provider should NOT have been called
         mock_provider.classify_and_extract.assert_not_called()
