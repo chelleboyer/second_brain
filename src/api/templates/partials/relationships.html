@@ -1,0 +1,80 @@
+<!-- Relationship explorer partial for an entry -->
+<div class="detail-section">
+    <h3>🔗 Relationships</h3>
+
+    {% if outgoing %}
+    <div style="margin-bottom: 1rem;">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            Outgoing ({{ outgoing|length }})
+        </h4>
+        {% for rel in outgoing %}
+            <div class="entry-card" style="padding: 0.5rem; margin-bottom: 0.4rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span class="type-chip chip-teal" style="font-size: 0.7rem;">
+                            → {{ rel.relationship_type.value if rel.relationship_type else rel.get('relationship_type', 'related') }}
+                        </span>
+                        {% if rel.target_entry %}
+                            {% set display = type_display.get(rel.target_entry.type) %}
+                            {% if display %}
+                                <span class="type-chip chip-{{ display.color }}">{{ display.emoji }}</span>
+                            {% endif %}
+                            <a href="/entry/{{ rel.target_entry.id }}" class="entry-title" style="font-size: 0.85rem;">
+                                {{ rel.target_entry.title }}
+                            </a>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">[Entry not found]</span>
+                        {% endif %}
+                    </div>
+                    {% if rel.confidence %}
+                        <span class="score">{{ (rel.confidence * 100)|int }}%</span>
+                    {% endif %}
+                </div>
+                {% if rel.reason %}
+                    <div class="entry-meta">{{ rel.reason }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if incoming %}
+    <div>
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            Incoming ({{ incoming|length }})
+        </h4>
+        {% for rel in incoming %}
+            <div class="entry-card" style="padding: 0.5rem; margin-bottom: 0.4rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span class="type-chip chip-purple" style="font-size: 0.7rem;">
+                            ← {{ rel.relationship_type.value if rel.relationship_type else rel.get('relationship_type', 'related') }}
+                        </span>
+                        {% if rel.source_entry %}
+                            {% set display = type_display.get(rel.source_entry.type) %}
+                            {% if display %}
+                                <span class="type-chip chip-{{ display.color }}">{{ display.emoji }}</span>
+                            {% endif %}
+                            <a href="/entry/{{ rel.source_entry.id }}" class="entry-title" style="font-size: 0.85rem;">
+                                {{ rel.source_entry.title }}
+                            </a>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem;">[Entry not found]</span>
+                        {% endif %}
+                    </div>
+                    {% if rel.confidence %}
+                        <span class="score">{{ (rel.confidence * 100)|int }}%</span>
+                    {% endif %}
+                </div>
+                {% if rel.reason %}
+                    <div class="entry-meta">{{ rel.reason }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not outgoing and not incoming %}
+        <p style="color: var(--text-muted); font-size: 0.85rem;">No relationships found for this entry.</p>
+    {% endif %}
+</div>

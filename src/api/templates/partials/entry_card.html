@@ -1,10 +1,31 @@
 {% set display = type_display.get(entry.type) %}
-<div class="entry-card{% if entry.archived_at %} entry-archived{% endif %}" id="entry-{{ entry.id }}">
+{% set para = entry.para_category.value if entry.para_category else 'resource' %}
+<div class="entry-card para-{{ para }}{% if entry.archived_at %} entry-archived{% endif %}"
+     id="entry-{{ entry.id }}">
     <div class="entry-header">
-        <div>
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <!-- Confidence dot -->
+            {% if entry.confidence is not none %}
+                {% if entry.confidence >= 0.7 %}
+                    <span class="confidence-dot conf-high" title="High confidence: {{ (entry.confidence * 100)|int }}%"></span>
+                {% elif entry.confidence >= 0.4 %}
+                    <span class="confidence-dot conf-medium" title="Medium confidence: {{ (entry.confidence * 100)|int }}%"></span>
+                {% else %}
+                    <span class="confidence-dot conf-low" title="Low confidence: {{ (entry.confidence * 100)|int }}%"></span>
+                {% endif %}
+            {% endif %}
+
             {% if display %}
                 <span class="type-chip chip-{{ display.color }}">{{ display.emoji }} {{ display.label }}</span>
             {% endif %}
+
+            <!-- Novelty badge -->
+            {% if entry.novelty and entry.novelty.value == 'augment' %}
+                <span class="novelty-badge novelty-augment">↗ Augment</span>
+            {% elif entry.novelty and entry.novelty.value == 'duplicate' %}
+                <span class="novelty-badge novelty-duplicate">♻ Dup</span>
+            {% endif %}
+
             <a href="/entry/{{ entry.id }}" class="entry-title" title="View details">{{ entry.title }}</a>
         </div>
         <div class="entry-actions">
@@ -15,7 +36,7 @@
                     hx-swap="outerHTML"
                     name="new_type"
                     title="Reclassify">
-                <option value="" disabled selected>⇄ Type</option>
+                <option value="" disabled selected>⇄</option>
                 {% for t in classifiable_types %}
                     {% set td = type_display.get(t) %}
                     <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
@@ -57,20 +78,53 @@
             {% endif %}
         </div>
     </div>
+
     <div class="entry-summary">{{ entry.summary }}</div>
+
+    <!-- Entity pills -->
+    {% if entry.extracted_entities %}
+    <div class="entity-pills">
+        {% for ent in entry.extracted_entities %}
+            <a href="/entities?q={{ ent }}" class="entity-pill" title="View entity">🏗️ {{ ent }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="entry-meta">
-        {{ entry.author_name }} · {{ relative_time(entry.created_at) }}
-        {% if entry.project %}
-            · 📁 {{ entry.project }}
+        <span>{{ entry.author_name }}</span>
+        <span>·</span>
+        <span>{{ relative_time(entry.created_at) }}</span>
+        {% if entry.para_category %}
+            {% set pd = para_display.get(entry.para_category) %}
+            {% if pd %}
+                <span>·</span>
+                <span>{{ pd.emoji }} {{ pd.label }}</span>
+            {% endif %}
         {% endif %}
-        {% if entry.reply_count > 0 %}
-            · 💬 {{ entry.reply_count }} replies
+        {% if entry.project %}
+            <span>·</span>
+            <span>📁 {{ entry.project }}</span>
+        {% endif %}
+        {% if entry.reply_count and entry.reply_count > 0 %}
+            <span>·</span>
+            <span>💬 {{ entry.reply_count }}</span>
         {% endif %}
         {% if entry.source == "manual" %}
-            · ✍️ Manual
+            <span>·</span>
+            <span>✍️ Manual</span>
         {% endif %}
         {% if entry.archived_at %}
-            · 📦 Archived
+            <span>·</span>
+            <span>📦 Archived</span>
+        {% endif %}
+        {% if entry.augments_entry_id %}
+            <span>·</span>
+            <span>↗ Augments <a href="/entry/{{ entry.augments_entry_id }}" style="font-size: inherit;">previous</a></span>
         {% endif %}
     </div>
+
+    <!-- Suggestions (lazy-loaded) -->
+    <div hx-get="/entry/{{ entry.id }}/suggestions"
+         hx-trigger="intersect once"
+         hx-swap="innerHTML"></div>
 </div>

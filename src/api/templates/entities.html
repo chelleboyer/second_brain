@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block nav_entities %}active{% endblock %}
+{% block page_heading %}🏗️ Entities{% endblock %}
+
+{% block content %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <h2>🏗️ Entity Browser
+        {% if entities %}
+            <span class="count-badge">{{ entities|length }} entities</span>
+        {% endif %}
+    </h2>
+
+    <!-- Search + Filter -->
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+        <input type="text"
+               class="search-box"
+               name="q"
+               placeholder="Search entities..."
+               value="{{ search_query }}"
+               hx-get="/entities"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="body"
+               hx-push-url="true"
+               hx-include="[name='type']"
+               style="margin-bottom: 0; flex: 1; min-width: 200px;">
+    </div>
+
+    <!-- Type filter tabs -->
+    <div class="filter-tabs">
+        <a href="/entities"
+           class="filter-tab {% if not active_type %}active{% endif %}">All</a>
+        {% for et in entity_types %}
+            {% set ed = entity_display.get(et) %}
+            {% if ed %}
+            <a href="/entities?type={{ et.value }}&q={{ search_query }}"
+               class="filter-tab {% if active_type == et.value %}active{% endif %}"
+               title="{{ ed.label }}">{{ ed.emoji }} {{ ed.label }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Entity list -->
+    <div id="entity-list">
+        {% for entity in entities %}
+            {% set ed = entity_display.get(entity.entity_type) %}
+            <div class="entry-card" style="cursor: pointer;"
+                 onclick="window.location='/entity/{{ entity.id }}'">
+                <div class="entry-header">
+                    <div>
+                        {% if ed %}
+                            <span class="type-chip chip-{{ ed.color }}">{{ ed.emoji }} {{ ed.label }}</span>
+                        {% endif %}
+                        <a href="/entity/{{ entity.id }}" class="entry-title">{{ entity.name }}</a>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="score">📊 {{ entity.entry_count }} entries</span>
+                    </div>
+                </div>
+                {% if entity.description %}
+                    <div class="entry-summary">{{ entity.description }}</div>
+                {% endif %}
+                <div class="entry-meta">
+                    {% if entity.aliases %}
+                        Aliases: {{ entity.aliases | join(", ") }} ·
+                    {% endif %}
+                    Updated {{ relative_time(entity.updated_at) }}
+                </div>
+            </div>
+        {% endfor %}
+        {% if not entities %}
+            <div class="capture-prompt">
+                {% if search_query %}
+                    <p>No entities found matching "{{ search_query }}".</p>
+                {% else %}
+                    <p>No entities extracted yet. Capture some thoughts to start building your entity graph.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

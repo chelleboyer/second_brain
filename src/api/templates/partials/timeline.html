@@ -1,0 +1,43 @@
+<!-- Timeline partial — chronological knowledge evolution for an entity -->
+{% if entries %}
+<div style="position: relative; padding-left: 1.5rem;">
+    <!-- Timeline line -->
+    <div style="position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: var(--border);"></div>
+
+    {% for entry in entries %}
+        {% set display = type_display.get(entry.type) %}
+        <div style="position: relative; margin-bottom: 0.8rem;">
+            <!-- Timeline dot -->
+            <div style="position: absolute; left: -1.25rem; top: 0.4rem; width: 10px; height: 10px;
+                 border-radius: 50%; background: {% if display %}var(--{{ display.color }}){% else %}var(--accent){% endif %};
+                 border: 2px solid var(--bg);"></div>
+
+            <div class="entry-card" style="padding: 0.6rem;">
+                <div class="entry-header" style="margin-bottom: 0.2rem;">
+                    <div>
+                        {% if display %}
+                            <span class="type-chip chip-{{ display.color }}" style="font-size: 0.7rem;">
+                                {{ display.emoji }} {{ display.label }}
+                            </span>
+                        {% endif %}
+                        <a href="/entry/{{ entry.id }}" class="entry-title" style="font-size: 0.85rem;">
+                            {{ entry.title }}
+                        </a>
+                    </div>
+                    <span class="score">{{ entry.created_at.strftime('%b %d, %Y') }}</span>
+                </div>
+                <div class="entry-summary" style="font-size: 0.8rem;">{{ entry.summary[:150] }}</div>
+                {% if entry.extracted_entities %}
+                    <div class="entry-meta" style="margin-top: 0.3rem;">
+                        {% for ent in entry.extracted_entities %}
+                            <span class="type-chip chip-teal" style="font-size: 0.65rem;">{{ ent }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% else %}
+<p style="color: var(--text-muted); font-size: 0.85rem;">No timeline entries found for {{ entity.name }}.</p>
+{% endif %}

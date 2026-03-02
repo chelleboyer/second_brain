@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DB_PATH: str = "second_brain.db"
 
+    # Phase 2: Entity matching thresholds (per entity type)
+    ENTITY_SIMILARITY_THRESHOLD_DEFAULT: float = 0.70
+    ENTITY_SIMILARITY_THRESHOLD_PERSON: float = 0.80
+    ENTITY_SIMILARITY_THRESHOLD_TECHNOLOGY: float = 0.75
+    ENTITY_SIMILARITY_THRESHOLD_PROJECT: float = 0.75
+    ENTITY_SIMILARITY_THRESHOLD_CONCEPT: float = 0.65
+    ENTITY_SIMILARITY_THRESHOLD_ORGANIZATION: float = 0.75
+
     @property
     def resolved_db_path(self) -> Path:
         """Resolve DB_PATH to an absolute path relative to project root."""

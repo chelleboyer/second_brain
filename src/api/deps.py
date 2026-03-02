@@ -5,8 +5,14 @@ from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
 from src.classification.classifier import Classifier
+from src.core.entity_resolution import EntityRepository, EntityResolver
+from src.core.graph import GraphService
 from src.core.pipeline import CapturePipeline
+from src.core.suggestions import SuggestionEngine
+from src.core.summarization import SummarizationService
+from src.retrieval.recall import RecallService
 from src.retrieval.search import SearchOrchestrator
+from src.slack.commands import SlackCommandHandler
 from src.storage.database import Database
 from src.storage.repository import BrainEntryRepository
 
@@ -17,8 +23,16 @@ class AppState:
     pipeline: CapturePipeline
     repository: BrainEntryRepository
     search: SearchOrchestrator
+    recall: RecallService
     classifier: Classifier
     database: Database
+    entity_repo: EntityRepository
+    entity_resolver: EntityResolver
+    # Phase 2: Intelligence layer
+    graph_service: GraphService
+    suggestion_engine: SuggestionEngine
+    summarization_service: SummarizationService
+    slack_commands: SlackCommandHandler
 
 
 app_state = AppState()

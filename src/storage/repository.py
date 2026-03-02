@@ -7,7 +7,7 @@ from uuid import UUID
 import structlog
 
 from src.models.brain_entry import BrainEntry
-from src.models.enums import EntryType
+from src.models.enums import EntryType, NoveltyVerdict, PARACategory
 from src.storage.database import Database
 
 log = structlog.get_logger(__name__)
@@ -28,8 +28,10 @@ class BrainEntryRepository:
                     id, type, title, summary, raw_content, created_at,
                     project, tags, embedding_vector_id, slack_ts,
                     slack_permalink, author_id, author_name, thread_ts,
-                    reply_count, archived_at, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    reply_count, archived_at, source,
+                    para_category, confidence, extracted_entities,
+                    novelty, augments_entry_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(entry.id),
@@ -49,6 +51,11 @@ class BrainEntryRepository:
                     entry.reply_count,
                     entry.archived_at.isoformat() if entry.archived_at else None,
                     entry.source,
+                    entry.para_category.value,
+                    entry.confidence,
+                    json.dumps(entry.extracted_entities),
+                    entry.novelty.value,
+                    str(entry.augments_entry_id) if entry.augments_entry_id else None,
                 ),
             )
             await conn.commit()
@@ -292,6 +299,8 @@ class BrainEntryRepository:
     @staticmethod
     def _row_to_entry(row) -> BrainEntry:
         """Convert a database row to a BrainEntry model."""
+        # Handle rows that may come from older schema (pre-Phase-1)
+        row_keys = row.keys() if hasattr(row, 'keys') else []
         return BrainEntry(
             id=UUID(row["id"]),
             type=EntryType(row["type"]),
@@ -314,4 +323,9 @@ class BrainEntryRepository:
                 else None
             ),
             source=row["source"],
+            para_category=PARACategory(row["para_category"]) if "para_category" in row_keys else PARACategory.RESOURCE,
+            confidence=row["confidence"] if "confidence" in row_keys else 0.0,
+            extracted_entities=json.loads(row["extracted_entities"]) if "extracted_entities" in row_keys else [],
+            novelty=NoveltyVerdict(row["novelty"]) if "novelty" in row_keys else NoveltyVerdict.NEW,
+            augments_entry_id=UUID(row["augments_entry_id"]) if "augments_entry_id" in row_keys and row["augments_entry_id"] else None,
         )

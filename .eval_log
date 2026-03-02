@@ -1,0 +1,46 @@
+Second Brain -- Model Evaluation Harness
+Classification models: 3
+Embedding models: 3
+Eval samples: 14
+
+============================================================
+Evaluating embedding: BAAI/bge-small-en-v1.5
+============================================================
+  [1/5] OK   384d (26343ms)
+  [2/5] OK   384d (132ms)
+  [3/5] OK   384d (127ms)
+  [4/5] OK   384d (249ms)
+  [5/5] OK   384d (3765ms)
+
+  Success rate: 100.0% (5/5)
+  Avg latency: 6123ms
+
+============================================================
+Evaluating embedding: BAAI/bge-base-en-v1.5
+============================================================
+  [1/5] OK   768d (21916ms)
+  [2/5] OK   768d (24454ms)
+  [3/5] OK   768d (22217ms)
+  [4/5] OK   768d (8879ms)
+  [5/5] OK   768d (25273ms)
+
+  Success rate: 100.0% (5/5)
+  Avg latency: 20548ms
+
+============================================================
+Evaluating embedding: sentence-transformers/all-MiniLM-L6-v2
+============================================================
+  [1/5] ERROR: HTTP 400
+  [2/5] ERROR: HTTP 400
+  [3/5] ERROR: HTTP 400
+  [4/5] ERROR: HTTP 400
+  [5/5] ERROR: HTTP 400
+
+  Success rate: 0.0% (0/5)
+  Avg latency: 0ms
+
+============================================================
+Results saved to C:\code\second_brain\eval_results.json
+View at http://localhost:8000/eval
+============================================================
+Evaluation complete.

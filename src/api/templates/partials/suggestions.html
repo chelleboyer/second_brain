@@ -1,0 +1,21 @@
+<!-- Smart suggestions partial for an entry -->
+{% if suggestions %}
+<div class="detail-section" style="margin-top: 0.8rem;">
+    <h4 style="font-size: 0.85rem; color: var(--gold); margin-bottom: 0.5rem;">
+        💡 Suggestions
+    </h4>
+    {% for s in suggestions %}
+        <div class="entry-card" style="padding: 0.5rem; margin-bottom: 0.3rem; border-left: 2px solid var(--gold);">
+            <div style="font-size: 0.82rem;">
+                <span class="type-chip chip-gold" style="font-size: 0.68rem;">{{ s.suggestion_type }}</span>
+                {{ s.message }}
+            </div>
+            {% if s.entity_name %}
+                <div class="entry-meta">
+                    🏗️ {{ s.entity_name }}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endif %}

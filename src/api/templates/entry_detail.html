@@ -1,23 +1,53 @@
 {% extends "base.html" %}
 
+{% block page_heading %}📄 Entry Detail{% endblock %}
+
 {% block content %}
-<div class="panel" style="grid-column: 1 / -1;">
+<div class="panel panel-full">
     <div class="detail-nav">
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
 
     {% set display = type_display.get(entry.type) %}
+    {% set para = entry.para_category.value if entry.para_category else 'resource' %}
 
     <div class="detail-header">
-        <div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <!-- Confidence dot -->
+            {% if entry.confidence is not none %}
+                {% if entry.confidence >= 0.7 %}
+                    <span class="confidence-dot conf-high" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% elif entry.confidence >= 0.4 %}
+                    <span class="confidence-dot conf-medium" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% else %}
+                    <span class="confidence-dot conf-low" title="{{ (entry.confidence * 100)|int }}%"></span>
+                {% endif %}
+            {% endif %}
+
             {% if display %}
-                <span class="type-chip chip-{{ display.color }}" style="font-size: 0.9rem; padding: 0.3rem 0.8rem;">
+                <span class="type-chip chip-{{ display.color }}" style="font-size: 0.88rem; padding: 4px 12px;">
                     {{ display.emoji }} {{ display.label }}
                 </span>
             {% endif %}
-            <h2 style="display: inline; margin-left: 0.5rem;">{{ entry.title }}</h2>
+
+            {% if entry.para_category %}
+                {% set pd = para_display.get(entry.para_category) %}
+                {% if pd %}
+                    <span class="type-chip chip-{{ pd.color }}" style="font-size: 0.78rem;">
+                        {{ pd.emoji }} {{ pd.label }}
+                    </span>
+                {% endif %}
+            {% endif %}
+
+            {% if entry.novelty and entry.novelty.value != 'new' %}
+                <span class="novelty-badge novelty-{{ entry.novelty.value }}">
+                    {% if entry.novelty.value == 'augment' %}↗ Augment{% else %}♻ Duplicate{% endif %}
+                </span>
+            {% endif %}
+
+            <h2 style="display: inline; margin-left: 4px;">{{ entry.title }}</h2>
         </div>
-        <div class="entry-actions">
+        <div class="entry-actions" style="opacity: 1;">
             <button class="action-btn"
                     hx-get="/entry/{{ entry.id }}/edit"
                     hx-target="#detail-card"
@@ -52,50 +82,93 @@
         </div>
     </div>
 
+    <!-- Entity pills -->
+    {% if entry.extracted_entities %}
+    <div class="entity-pills" style="margin-bottom: 16px;">
+        {% for ent in entry.extracted_entities %}
+            <a href="/entities?q={{ ent }}" class="entity-pill">🏗️ {{ ent }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div id="detail-card">
-        <div class="detail-section">
-            <h3>Summary</h3>
-            <p>{{ entry.summary }}</p>
-        </div>
+        <div class="panel-grid">
+            <!-- Left column: Content -->
+            <div>
+                <div class="detail-section">
+                    <h3>Summary</h3>
+                    <p style="line-height: 1.6;">{{ entry.summary }}</p>
+                </div>
 
-        <div class="detail-section">
-            <h3>Raw Content</h3>
-            <pre class="raw-content">{{ entry.raw_content }}</pre>
-        </div>
+                <div class="detail-section">
+                    <h3>Raw Content</h3>
+                    <pre class="raw-content">{{ entry.raw_content }}</pre>
+                </div>
 
-        <div class="detail-section">
-            <h3>Metadata</h3>
-            <table class="meta-table">
-                <tr><td>ID</td><td><code>{{ entry.id }}</code></td></tr>
-                <tr><td>Type</td><td>{{ display.emoji if display }} {{ entry.type.value }}</td></tr>
-                <tr><td>Author</td><td>{{ entry.author_name }} ({{ entry.author_id }})</td></tr>
-                <tr><td>Created</td><td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
-                <tr><td>Source</td><td>{{ entry.source }}</td></tr>
-                {% if entry.project %}
-                <tr><td>Project</td><td>{{ entry.project }}</td></tr>
-                {% endif %}
-                {% if entry.tags %}
-                <tr><td>Tags</td><td>{{ entry.tags | join(', ') }}</td></tr>
-                {% endif %}
-                {% if entry.slack_ts %}
-                <tr><td>Slack TS</td><td>{{ entry.slack_ts }}</td></tr>
-                {% endif %}
-                {% if entry.slack_permalink %}
-                <tr><td>Slack Link</td><td><a href="{{ entry.slack_permalink }}" target="_blank">Open in Slack 🔗</a></td></tr>
-                {% endif %}
-                {% if entry.thread_ts %}
-                <tr><td>Thread</td><td>{{ entry.thread_ts }}</td></tr>
-                {% endif %}
-                {% if entry.reply_count > 0 %}
-                <tr><td>Replies</td><td>{{ entry.reply_count }}</td></tr>
-                {% endif %}
-                {% if entry.embedding_vector_id %}
-                <tr><td>Vector ID</td><td><code>{{ entry.embedding_vector_id }}</code></td></tr>
-                {% endif %}
-                {% if entry.archived_at %}
-                <tr><td>Archived</td><td>{{ entry.archived_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
-                {% endif %}
-            </table>
+                <!-- Suggestions -->
+                <div hx-get="/entry/{{ entry.id }}/suggestions"
+                     hx-trigger="load"
+                     hx-swap="innerHTML"></div>
+            </div>
+
+            <!-- Right column: Metadata + Relationships -->
+            <div>
+                <div class="detail-section">
+                    <h3>Metadata</h3>
+                    <table class="meta-table">
+                        <tr><td>ID</td><td><code>{{ entry.id }}</code></td></tr>
+                        <tr><td>Type</td><td>{{ display.emoji if display }} {{ entry.type.value }}</td></tr>
+                        {% if entry.para_category %}
+                        <tr><td>PARA</td><td>{{ entry.para_category.value }}</td></tr>
+                        {% endif %}
+                        {% if entry.confidence is not none %}
+                        <tr>
+                            <td>Confidence</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="eval-bar" style="flex: 1; height: 6px;">
+                                        <div class="eval-bar-fill" style="width: {{ (entry.confidence * 100)|int }}%;
+                                            background: {% if entry.confidence >= 0.7 %}var(--green){% elif entry.confidence >= 0.4 %}var(--gold){% else %}var(--red){% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.82rem;">{{ (entry.confidence * 100)|int }}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if entry.novelty %}
+                        <tr><td>Novelty</td><td>{{ entry.novelty.value }}</td></tr>
+                        {% endif %}
+                        <tr><td>Author</td><td>{{ entry.author_name }} ({{ entry.author_id }})</td></tr>
+                        <tr><td>Created</td><td>{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
+                        <tr><td>Source</td><td>{{ entry.source }}</td></tr>
+                        {% if entry.project %}
+                        <tr><td>Project</td><td>{{ entry.project }}</td></tr>
+                        {% endif %}
+                        {% if entry.tags %}
+                        <tr><td>Tags</td><td>{{ entry.tags | join(', ') }}</td></tr>
+                        {% endif %}
+                        {% if entry.slack_permalink %}
+                        <tr><td>Slack Link</td><td><a href="{{ entry.slack_permalink }}" target="_blank">Open in Slack 🔗</a></td></tr>
+                        {% endif %}
+                        {% if entry.augments_entry_id %}
+                        <tr><td>Augments</td><td><a href="/entry/{{ entry.augments_entry_id }}">View parent entry →</a></td></tr>
+                        {% endif %}
+                        {% if entry.embedding_vector_id %}
+                        <tr><td>Vector ID</td><td><code>{{ entry.embedding_vector_id }}</code></td></tr>
+                        {% endif %}
+                        {% if entry.archived_at %}
+                        <tr><td>Archived</td><td>{{ entry.archived_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</td></tr>
+                        {% endif %}
+                    </table>
+                </div>
+
+                <!-- Relationships (lazy-loaded) -->
+                <div hx-get="/entry/{{ entry.id }}/relationships"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="skeleton" style="height: 80px; margin-top: 16px;"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

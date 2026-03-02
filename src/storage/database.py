@@ -69,8 +69,100 @@ class Database:
                     thread_ts TEXT,
                     reply_count INTEGER NOT NULL DEFAULT 0,
                     archived_at TEXT,
-                    source TEXT NOT NULL DEFAULT 'slack'
+                    source TEXT NOT NULL DEFAULT 'slack',
+                    para_category TEXT NOT NULL DEFAULT 'resource',
+                    confidence REAL NOT NULL DEFAULT 0.0,
+                    extracted_entities TEXT NOT NULL DEFAULT '[]',
+                    novelty TEXT NOT NULL DEFAULT 'new',
+                    augments_entry_id TEXT
                 )
+            """)
+
+            # Entities table — named things that span multiple captures
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS entities (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    entity_type TEXT NOT NULL,
+                    aliases TEXT NOT NULL DEFAULT '[]',
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    entry_count INTEGER NOT NULL DEFAULT 0,
+                    embedding_vector_id TEXT
+                )
+            """)
+
+            # Index for fast entity lookup by name
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entities_name
+                ON entities(name COLLATE NOCASE)
+            """)
+
+            # Entity mentions — junction table linking entities to entries
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS entity_mentions (
+                    id TEXT PRIMARY KEY,
+                    entity_id TEXT NOT NULL,
+                    entry_id TEXT NOT NULL,
+                    mention_text TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (entity_id) REFERENCES entities(id),
+                    FOREIGN KEY (entry_id) REFERENCES brain_entries(id)
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entity_mentions_entity
+                ON entity_mentions(entity_id)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entity_mentions_entry
+                ON entity_mentions(entry_id)
+            """)
+
+            # Entry relationships — typed directional links between entries
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS entry_relationships (
+                    id TEXT PRIMARY KEY,
+                    source_entry_id TEXT NOT NULL,
+                    target_entry_id TEXT NOT NULL,
+                    relationship_type TEXT NOT NULL,
+                    confidence REAL NOT NULL DEFAULT 0.0,
+                    created_at TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY (source_entry_id) REFERENCES brain_entries(id),
+                    FOREIGN KEY (target_entry_id) REFERENCES brain_entries(id)
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_relationships_source
+                ON entry_relationships(source_entry_id)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_relationships_target
+                ON entry_relationships(target_entry_id)
+            """)
+
+            # Entity summaries — tracks progressive summarization state
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS entity_summaries (
+                    id TEXT PRIMARY KEY,
+                    entity_id TEXT NOT NULL UNIQUE,
+                    summary_text TEXT NOT NULL DEFAULT '',
+                    entry_count_at_summary INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (entity_id) REFERENCES entities(id)
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entity_summaries_entity
+                ON entity_summaries(entity_id)
             """)
 
             # App state table for tracking last processed timestamp

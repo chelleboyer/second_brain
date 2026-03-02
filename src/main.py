@@ -8,13 +8,21 @@ from typing import AsyncGenerator
 import structlog
 import uvicorn
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from slack_sdk import WebClient
 
 from src.api.deps import app_state
 from src.classification.classifier import Classifier
 from src.classification.provider import HuggingFaceProvider
 from src.config import get_settings
+from src.core.entity_resolution import EntityRepository, EntityResolver
+from src.core.graph import GraphService
 from src.core.pipeline import CapturePipeline
+from src.core.suggestions import SuggestionEngine
+from src.core.summarization import SummarizationService
+from src.retrieval.recall import RecallService
+from src.slack.commands import SlackCommandHandler
+from src.models.enums import EntityType
 from src.retrieval.keyword_search import KeywordSearch
 from src.retrieval.search import SearchOrchestrator
 from src.retrieval.vector_store import VectorStore
@@ -106,15 +114,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Initialize keyword search
     keyword_search = KeywordSearch(repository)
 
-    # Initialize search orchestrator
-    search_orchestrator = SearchOrchestrator(
-        vector_store=vector_store,
-        keyword_search=keyword_search,
-        provider=provider,
-        repository=repository,
-    )
-    app_state.search = search_orchestrator
-
     # Initialize Slack collector
     slack_client = WebClient(token=settings.SLACK_BOT_TOKEN)
     collector = SlackCollector(
@@ -124,14 +123,95 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         collect_dms=settings.SLACK_COLLECT_DMS,
     )
 
+    # Initialize entity resolution (Phase 2: with semantic matching)
+    entity_repo = EntityRepository(database)
+    entity_resolver = EntityResolver(
+        entity_repo,
+        vector_store=vector_store,
+        provider=provider,
+        semantic_thresholds={
+            EntityType.PERSON: settings.ENTITY_SIMILARITY_THRESHOLD_PERSON,
+            EntityType.TECHNOLOGY: settings.ENTITY_SIMILARITY_THRESHOLD_TECHNOLOGY,
+            EntityType.PROJECT: settings.ENTITY_SIMILARITY_THRESHOLD_PROJECT,
+            EntityType.CONCEPT: settings.ENTITY_SIMILARITY_THRESHOLD_CONCEPT,
+            EntityType.ORGANIZATION: settings.ENTITY_SIMILARITY_THRESHOLD_ORGANIZATION,
+        },
+    )
+    app_state.entity_repo = entity_repo
+    app_state.entity_resolver = entity_resolver
+    log.info("entity_resolution_initialized")
+
+    # Phase 2: Initialize graph service
+    graph_service = GraphService(
+        entity_repo=entity_repo,
+        entry_repo=repository,
+    )
+    app_state.graph_service = graph_service
+    log.info("graph_service_initialized")
+
+    # Initialize search orchestrator (Phase 3: multi-signal + graph-aware)
+    search_orchestrator = SearchOrchestrator(
+        vector_store=vector_store,
+        keyword_search=keyword_search,
+        provider=provider,
+        repository=repository,
+        entity_repo=entity_repo,
+        graph_service=graph_service,
+    )
+    app_state.search = search_orchestrator
+
+    # Phase 3: Initialize contextual recall service
+    recall_service = RecallService(
+        search=search_orchestrator,
+        provider=provider,
+    )
+    app_state.recall = recall_service
+    log.info("recall_service_initialized")
+
+    # Phase 2: Initialize summarization service
+    summarization_service = SummarizationService(
+        entity_repo=entity_repo,
+        entry_repo=repository,
+        db=database,
+        provider=provider,
+    )
+    app_state.summarization_service = summarization_service
+    log.info("summarization_service_initialized")
+
+    # Phase 2: Initialize suggestion engine
+    suggestion_engine = SuggestionEngine(
+        entity_repo=entity_repo,
+        entry_repo=repository,
+        graph_service=graph_service,
+    )
+    app_state.suggestion_engine = suggestion_engine
+    log.info("suggestion_engine_initialized")
+
+    # Phase 4: Initialize Slack command handler
+    slack_commands = SlackCommandHandler(
+        pipeline=None,  # Set after pipeline init
+        recall_service=recall_service,
+        entity_repo=entity_repo,
+        summarization_service=summarization_service,
+        search=search_orchestrator,
+    )
+    app_state.slack_commands = slack_commands
+    log.info("slack_commands_initialized")
+
     # Initialize capture pipeline
     pipeline = CapturePipeline(
         classifier=classifier,
         repository=repository,
         vector_store=vector_store,
         collector=collector,
+        entity_resolver=entity_resolver,
+        entity_repo=entity_repo,
+        suggestion_engine=suggestion_engine,
     )
     app_state.pipeline = pipeline
+
+    # Wire pipeline into slack commands (circular dependency resolution)
+    slack_commands.pipeline = pipeline
 
     # Run startup catch-up in background so UI is immediately available
     async def _background_catch_up() -> None:
@@ -158,6 +238,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
 # Create FastAPI app
 app = FastAPI(title="Second Brain", lifespan=lifespan)
+
+# Mount static files
+from pathlib import Path as _Path
+_static_dir = _Path(__file__).resolve().parent / "api" / "static"
+if _static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 # Include routes
 from src.api.routes import router  # noqa: E402

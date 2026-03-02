@@ -1,0 +1,52 @@
+<!-- Recall results partial — citation-backed answers -->
+{% if recall_result %}
+<div style="margin-top: 0.5rem;">
+    {% if recall_result.sources %}
+        <!-- Confidence indicator -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.82rem; color: var(--text-muted);">
+                🔍 {{ recall_result.search_results|length }} results
+            </span>
+            <span style="font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 12px;
+                {% if recall_result.confidence >= 0.7 %}
+                    background: rgba(76, 175, 80, 0.2); color: var(--green);
+                {% elif recall_result.confidence >= 0.4 %}
+                    background: rgba(255, 213, 79, 0.2); color: var(--gold);
+                {% else %}
+                    background: rgba(239, 83, 80, 0.2); color: var(--red);
+                {% endif %}">
+                {{ (recall_result.confidence * 100)|int }}% confidence
+            </span>
+        </div>
+
+        <!-- Answer text -->
+        <div class="raw-content" style="max-height: 250px; margin-bottom: 0.8rem; font-size: 0.85rem; line-height: 1.6;">
+            {{ recall_result.answer | replace('\n', '<br>') | safe }}
+        </div>
+
+        <!-- Source entries -->
+        <h4 style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.4rem;">Sources</h4>
+        {% for source in recall_result.sources[:5] %}
+            {% set display = type_display.get(source.type) %}
+            <div class="entry-card" style="padding: 0.5rem; margin-bottom: 0.3rem;">
+                <div class="entry-header" style="margin-bottom: 0;">
+                    <div>
+                        {% if display %}
+                            <span class="type-chip chip-{{ display.color }}" style="font-size: 0.7rem;">{{ display.emoji }}</span>
+                        {% endif %}
+                        <a href="/entry/{{ source.id }}" class="entry-title" style="font-size: 0.82rem;">
+                            {{ source.title }}
+                        </a>
+                    </div>
+                    <span class="score">{{ relative_time(source.created_at) }}</span>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="capture-prompt" style="padding: 1rem;">
+            <p>No relevant entries found for "{{ query }}".</p>
+            <p style="font-size: 0.82rem;">Try different search terms or capture more knowledge.</p>
+        </div>
+    {% endif %}
+</div>
+{% endif %}

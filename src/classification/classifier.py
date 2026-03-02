@@ -4,7 +4,7 @@ import structlog
 
 from src.classification.provider import LLMProvider
 from src.core.exceptions import ProviderError
-from src.models.enums import EntryType
+from src.models.enums import EntryType, PARACategory
 
 log = structlog.get_logger(__name__)
 
@@ -26,7 +26,10 @@ class Classifier:
 
         Returns:
             tuple of (extraction_dict, embedding_vector)
-            - extraction_dict: {"type": EntryType, "title": str, "summary": str}
+            - extraction_dict: {"type": EntryType, "title": str, "summary": str,
+                "para_category": PARACategory, "confidence": float,
+                "entities": list[dict], "project": str|None,
+                "action_items": list[str], "keywords": list[str]}
             - embedding_vector: list[float] (empty list if embedding fails)
         """
         # Attempt classification + extraction
@@ -50,6 +53,12 @@ class Classifier:
                 "type": EntryType.UNCLASSIFIED,
                 "title": text[:60],
                 "summary": text[:200],
+                "para_category": PARACategory.RESOURCE,
+                "confidence": 0.0,
+                "entities": [],
+                "project": None,
+                "action_items": [],
+                "keywords": [],
             }
 
     async def _embed(self, text: str) -> list[float]:

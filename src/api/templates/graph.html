@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block nav_graph %}active{% endblock %}
+{% block page_heading %}🔗 Knowledge Graph{% endblock %}
+
+{% block content %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <h2>🔗 Knowledge Graph</h2>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+        Interactive visualization of entities, entries, and their relationships.
+    </p>
+
+    <!-- Controls -->
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+        <label style="font-size: 0.82rem; color: var(--text-muted);">Filter:</label>
+        <select id="graph-type-filter" class="reclassify-select" style="min-width: 120px;">
+            <option value="">All types</option>
+            {% for et in entity_types %}
+                {% set ed = entity_display.get(et) %}
+                {% if ed %}
+                <option value="{{ et.value }}">{{ ed.emoji }} {{ ed.label }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+        <button id="graph-reset" class="action-btn" title="Reset zoom">🔄 Reset</button>
+        <span id="graph-stats" style="font-size: 0.8rem; color: var(--text-muted); margin-left: auto;"></span>
+    </div>
+
+    <!-- Graph container -->
+    <div id="graph-container" style="width: 100%; height: 600px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; position: relative; overflow: hidden;">
+        <canvas id="graph-canvas" style="width: 100%; height: 100%;"></canvas>
+        <div id="graph-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--text-muted);">
+            Loading graph data...
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);">
+        <span>🟦 Entry</span>
+        <span>🟠 Entity</span>
+        <span>─── mentions</span>
+        <span>─── relationship</span>
+    </div>
+</div>
+
+<!-- D3.js for force-directed graph -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function() {
+    const container = document.getElementById('graph-container');
+    const loading = document.getElementById('graph-loading');
+    const stats = document.getElementById('graph-stats');
+    const width = container.clientWidth;
+    const height = 600;
+
+    // Color maps
+    const entityTypeColors = {
+        'project': '#e94560',
+        'person': '#4a9eff',
+        'technology': '#4caf50',
+        'concept': '#b39ddb',
+        'organization': '#ffd54f'
+    };
+    const entryTypeColors = {
+        'idea': '#4a9eff',
+        'task': '#4caf50',
+        'decision': '#b39ddb',
+        'risk': '#ef5350',
+        'strategy': '#ffd54f',
+        'arch_note': '#26a69a',
+        'note': '#9e9e9e'
+    };
+
+    // Create SVG
+    const svg = d3.select('#graph-container')
+        .html('')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'var(--bg)');
+
+    const g = svg.append('g');
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => g.attr('transform', event.transform));
+    svg.call(zoom);
+
+    document.getElementById('graph-reset').addEventListener('click', () => {
+        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+    });
+
+    // Fetch graph data
+    fetch('/api/graph?limit=100')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.nodes || data.nodes.length === 0) {
+                svg.append('text')
+                    .attr('x', width / 2)
+                    .attr('y', height / 2)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#8a8a9a')
+                    .text('No graph data yet. Capture some entries to build the graph.');
+                return;
+            }
+
+            stats.textContent = `${data.nodes.length} nodes · ${data.edges.length} edges`;
+
+            // Build simulation
+            const simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.edges).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-150))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(d => d.size + 5));
+
+            // Draw edges
+            const link = g.append('g')
+                .selectAll('line')
+                .data(data.edges)
+                .join('line')
+                .attr('stroke', '#2a2a4a')
+                .attr('stroke-width', 1)
+                .attr('stroke-opacity', 0.6);
+
+            // Draw nodes
+            const node = g.append('g')
+                .selectAll('circle')
+                .data(data.nodes)
+                .join('circle')
+                .attr('r', d => d.size || 8)
+                .attr('fill', d => {
+                    if (d.type === 'entity') return entityTypeColors[d.entity_type] || '#e94560';
+                    return entryTypeColors[d.entry_type] || '#4a9eff';
+                })
+                .attr('stroke', '#1a1a2e')
+                .attr('stroke-width', 1.5)
+                .attr('cursor', 'pointer')
+                .call(d3.drag()
+                    .on('start', (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    })
+                    .on('drag', (event, d) => {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    })
+                    .on('end', (event, d) => {
+                        if (!event.active) simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    }));
+
+            // Labels
+            const label = g.append('g')
+                .selectAll('text')
+                .data(data.nodes)
+                .join('text')
+                .text(d => d.label)
+                .attr('font-size', d => d.type === 'entity' ? '11px' : '9px')
+                .attr('fill', '#e0e0e0')
+                .attr('dx', d => d.size + 4)
+                .attr('dy', 3)
+                .style('pointer-events', 'none');
+
+            // Click to navigate
+            node.on('click', (event, d) => {
+                if (d.type === 'entity') {
+                    window.location = `/entity/${d.id.replace('entity-', '')}`;
+                } else {
+                    window.location = `/entry/${d.id.replace('entry-', '')}`;
+                }
+            });
+
+            // Tooltip on hover
+            node.append('title')
+                .text(d => `${d.label} (${d.type})`);
+
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+                label
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y);
+            });
+
+            // Type filter
+            document.getElementById('graph-type-filter').addEventListener('change', function() {
+                const filterType = this.value;
+                node.style('opacity', d => {
+                    if (!filterType) return 1;
+                    if (d.type === 'entity' && d.entity_type === filterType) return 1;
+                    return 0.15;
+                });
+                label.style('opacity', d => {
+                    if (!filterType) return 1;
+                    if (d.type === 'entity' && d.entity_type === filterType) return 1;
+                    return 0.15;
+                });
+                link.style('opacity', filterType ? 0.1 : 0.6);
+            });
+        })
+        .catch(err => {
+            svg.append('text')
+                .attr('x', width / 2)
+                .attr('y', height / 2)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#ef5350')
+                .text('Failed to load graph data.');
+            console.error('Graph load error:', err);
+        });
+})();
+</script>
+{% endblock %}

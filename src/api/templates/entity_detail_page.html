@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block nav_entities %}active{% endblock %}
+{% block page_heading %}🏗️ Entity Detail{% endblock %}
+
+{% block content %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <!-- Breadcrumb nav -->
+    <div class="detail-nav">
+        <a href="/entities" class="back-link">← Entities</a>
+    </div>
+
+    {% set ed = entity_display.get(entity.entity_type) %}
+
+    <!-- Entity header -->
+    <div class="detail-header">
+        <div>
+            {% if ed %}
+                <span class="type-chip chip-{{ ed.color }}" style="font-size: 0.85rem; padding: 0.2rem 0.7rem;">
+                    {{ ed.emoji }} {{ ed.label }}
+                </span>
+            {% endif %}
+            <h1 style="display: inline; font-size: 1.4rem; margin-left: 0.5rem;">{{ entity.name }}</h1>
+        </div>
+        <div class="entry-actions">
+            <button class="action-btn"
+                    hx-post="/entity/{{ entity.id }}/summarize"
+                    hx-target="#entity-summary-section"
+                    hx-swap="innerHTML">
+                📝 Generate Summary
+            </button>
+            <span class="score">📊 {{ entity.entry_count }} entries</span>
+        </div>
+    </div>
+
+    {% if entity.description %}
+        <p style="color: var(--text-muted); margin-bottom: 1rem;">{{ entity.description }}</p>
+    {% endif %}
+
+    {% if entity.aliases %}
+        <div style="margin-bottom: 1rem;">
+            <span style="color: var(--text-muted); font-size: 0.85rem;">Aliases:</span>
+            {% for alias in entity.aliases %}
+                <span class="type-chip chip-gray">{{ alias }}</span>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Two-column layout for detail -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <!-- Left column: Summary + Timeline -->
+        <div>
+            <!-- Summary section -->
+            <div class="detail-section" id="entity-summary-section">
+                {% if entity_summary %}
+                    <h3>📝 Summary</h3>
+                    <div class="raw-content" style="max-height: 200px;">
+                        {{ entity_summary.summary_text }}
+                    </div>
+                    <div class="entry-meta" style="margin-top: 0.5rem;">
+                        Based on {{ entity_summary.entry_count_at_summary }} entries
+                        · Updated {{ relative_time(entity_summary.updated_at) }}
+                    </div>
+                {% else %}
+                    <h3>📝 Summary</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">
+                        No summary yet. Click "Generate Summary" to create one.
+                    </p>
+                {% endif %}
+            </div>
+
+            <!-- Timeline -->
+            <div class="detail-section">
+                <h3>📅 Timeline</h3>
+                <div hx-get="/entity/{{ entity.id }}/timeline"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">Loading timeline...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right column: Linked entries + Co-occurrence -->
+        <div>
+            <!-- Linked entries -->
+            <div class="detail-section">
+                <h3>🔗 Linked Entries ({{ entries|length }})</h3>
+                {% for entry in entries[:20] %}
+                    {% set display = type_display.get(entry.type) %}
+                    <div class="entry-card" style="padding: 0.6rem;">
+                        <div class="entry-header">
+                            <div>
+                                {% if display %}
+                                    <span class="type-chip chip-{{ display.color }}">{{ display.emoji }}</span>
+                                {% endif %}
+                                <a href="/entry/{{ entry.id }}" class="entry-title" style="font-size: 0.85rem;">
+                                    {{ entry.title }}
+                                </a>
+                            </div>
+                            <span class="score">{{ relative_time(entry.created_at) }}</span>
+                        </div>
+                        <div class="entry-summary" style="font-size: 0.8rem;">{{ entry.summary[:120] }}</div>
+                    </div>
+                {% endfor %}
+                {% if entries|length > 20 %}
+                    <div class="entry-meta" style="text-align: center; padding: 0.5rem;">
+                        And {{ entries|length - 20 }} more entries...
+                    </div>
+                {% endif %}
+                {% if not entries %}
+                    <p style="color: var(--text-muted); font-size: 0.85rem;">No linked entries.</p>
+                {% endif %}
+            </div>
+
+            <!-- Co-occurring entities -->
+            {% if cooccurrence %}
+            <div class="detail-section">
+                <h3>🤝 Co-occurring Entities</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                    {% for coent in cooccurrence %}
+                        <a href="/entities?q={{ coent.name }}" class="type-chip chip-blue"
+                           style="text-decoration: none; cursor: pointer;">
+                            {{ coent.name }} ({{ coent.count }})
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

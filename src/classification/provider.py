@@ -8,14 +8,26 @@ import httpx
 import structlog
 
 from src.core.exceptions import ProviderError
-from src.models.enums import CLASSIFIABLE_TYPES, EntryType
+from src.models.enums import CLASSIFIABLE_TYPES, EntryType, EntityType, PARACategory
 
 log = structlog.get_logger(__name__)
 
-CLASSIFICATION_PROMPT = """Analyze the following message and return a JSON object with exactly three fields:
+CLASSIFICATION_PROMPT = """Analyze the following message and return a JSON object with these fields:
+
 1. "type": one of [idea, task, decision, risk, arch_note, strategy, note]
 2. "title": a concise title (max 10 words)
 3. "summary": a 1-2 sentence summary
+4. "para_category": one of [project, area, resource, archive]
+   - "project" = active effort with a specific goal/deadline
+   - "area" = ongoing responsibility with no end date
+   - "resource" = reference material or topic of interest
+   - "archive" = inactive/completed item
+5. "confidence": how confident you are in the classification (0.0 to 1.0)
+6. "entities": array of objects, each with "name" (string) and "type" (one of [project, person, technology, concept, organization])
+   - Extract ALL named entities: project names, people, technologies, concepts, orgs
+7. "project": if the message is clearly about a specific project, its name (or null)
+8. "action_items": array of action item strings extracted from the message (empty if none)
+9. "keywords": array of 3-5 key topic words for search indexing
 
 Respond with ONLY valid JSON, no other text.
 
@@ -56,9 +68,11 @@ class HuggingFaceProvider:
         self.headers = {"Authorization": f"Bearer {api_token}"}
 
     async def classify_and_extract(self, text: str) -> dict:
-        """Classify text and extract title + summary via HF chat completions API.
+        """Classify text and extract title, summary, entities, PARA category, and more.
 
-        Returns dict with keys: type (EntryType), title (str), summary (str).
+        Returns dict with keys: type (EntryType), title (str), summary (str),
+        para_category (PARACategory), confidence (float), entities (list[dict]),
+        project (str|None), action_items (list[str]), keywords (list[str]).
         Raises ProviderError on total failure after retries.
         """
         prompt = CLASSIFICATION_PROMPT.format(text=text[:2000])  # Truncate long messages
@@ -66,7 +80,7 @@ class HuggingFaceProvider:
         payload = {
             "model": self.classification_model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 200,
+            "max_tokens": 500,
         }
 
         try:
@@ -76,19 +90,12 @@ class HuggingFaceProvider:
                 "classification_api_failed",
                 error=str(e),
             )
-            return {
-                "type": EntryType.UNCLASSIFIED,
-                "title": text[:60],
-                "summary": text[:200],
-            }
+            return self._fallback_extraction(text)
 
         # Parse JSON response
         try:
             parsed = self._extract_json(response_text)
-            entry_type = self._parse_type(parsed.get("type", ""))
-            title = str(parsed.get("title", text[:60]))[:100]
-            summary = str(parsed.get("summary", text[:200]))[:500]
-            return {"type": entry_type, "title": title, "summary": summary}
+            return self._build_extraction(parsed, text)
         except Exception as e:
             log.warning(
                 "classification_parse_failed",
@@ -97,11 +104,88 @@ class HuggingFaceProvider:
             )
             # Fallback: try to extract type via regex
             entry_type = self._regex_extract_type(response_text)
-            return {
-                "type": entry_type,
-                "title": text[:60],
-                "summary": text[:200],
-            }
+            result = self._fallback_extraction(text)
+            result["type"] = entry_type
+            return result
+
+    def _build_extraction(self, parsed: dict, original_text: str) -> dict:
+        """Build a fully structured extraction dict from parsed LLM output."""
+        entry_type = self._parse_type(parsed.get("type", ""))
+        title = str(parsed.get("title", original_text[:60]))[:100]
+        summary = str(parsed.get("summary", original_text[:200]))[:500]
+
+        # PARA category
+        para_raw = str(parsed.get("para_category", "resource")).strip().lower()
+        try:
+            para_category = PARACategory(para_raw)
+        except ValueError:
+            para_category = PARACategory.RESOURCE
+
+        # Confidence
+        try:
+            confidence = float(parsed.get("confidence", 0.0))
+            confidence = max(0.0, min(1.0, confidence))
+        except (TypeError, ValueError):
+            confidence = 0.0
+
+        # Entities
+        raw_entities = parsed.get("entities", [])
+        entities: list[dict] = []
+        if isinstance(raw_entities, list):
+            for ent in raw_entities:
+                if isinstance(ent, dict) and "name" in ent:
+                    ent_type = str(ent.get("type", "concept")).strip().lower()
+                    try:
+                        EntityType(ent_type)
+                    except ValueError:
+                        ent_type = "concept"
+                    entities.append({"name": str(ent["name"]), "type": ent_type})
+
+        # Project
+        project = parsed.get("project")
+        if project and isinstance(project, str):
+            project = project.strip() or None
+        else:
+            project = None
+
+        # Action items
+        raw_actions = parsed.get("action_items", [])
+        action_items: list[str] = []
+        if isinstance(raw_actions, list):
+            action_items = [str(a) for a in raw_actions if a]
+
+        # Keywords
+        raw_keywords = parsed.get("keywords", [])
+        keywords: list[str] = []
+        if isinstance(raw_keywords, list):
+            keywords = [str(k) for k in raw_keywords if k]
+
+        return {
+            "type": entry_type,
+            "title": title,
+            "summary": summary,
+            "para_category": para_category,
+            "confidence": confidence,
+            "entities": entities,
+            "project": project,
+            "action_items": action_items,
+            "keywords": keywords,
+        }
+
+    @staticmethod
+    def _fallback_extraction(text: str) -> dict:
+        """Minimal fallback when classification fails entirely."""
+        return {
+            "type": EntryType.UNCLASSIFIED,
+            "title": text[:60],
+            "summary": text[:200],
+            "para_category": PARACategory.RESOURCE,
+            "confidence": 0.0,
+            "entities": [],
+            "project": None,
+            "action_items": [],
+            "keywords": [],
+        }
 
     async def embed(self, text: str) -> list[float]:
         """Generate embedding vector via HF Inference API.
