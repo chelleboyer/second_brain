@@ -1,6 +1,6 @@
 # 🧠 Second Brain
 
-A Slack-native cognitive system that captures thoughts, classifies them with AI, resolves entities, detects duplicates, and surfaces structured reports — all through a local web dashboard.
+A Slack-native cognitive system that captures thoughts, classifies them with AI, resolves entities, detects duplicates, and surfaces structured reports — all through a local web dashboard. Includes a **Reputation & Optionality Engine** for strategic career positioning.
 
 ## Prerequisites
 
@@ -100,6 +100,15 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 - **Strategic entries** — Filtered views of risks, tasks, decisions, and strategy notes
 - **Type distribution** — Breakdown of entries by classification type
 
+### Strategic Positioning (Reputation & Optionality Engine)
+
+- **Initiative scoring** — 5-question Move Evaluation Engine rates every project on authority, asymmetric info, future mobility, reusable leverage, and visibility (0–25 scale → Maintenance / Supportive / Strategic)
+- **Stakeholder mapping** — Track influence level, alignment, dependency, and trust for key people
+- **Strategic assets** — Score reputation assets (reusability, signaling, market relevance, compounding) and optionality assets (portability, market demand, monetization, deploy speed)
+- **Influence tracking** — Weekly logs of advice sought, decisions changed, framing adopted; auto-computed trend
+- **Weekly simulation** — LLM-driven (with rule-based fallback) strategic review that outputs one strategic move, maintenance tasks, and position-building priorities
+- **Strategy dashboard** (`/strategy`) — KPI meters, visibility matrix, simulation runner, and influence history
+
 ### Eval Harness
 
 - **Model benchmarking** — Run classification eval against test data
@@ -126,9 +135,11 @@ Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF 
                                 ▼  ▼
                              SQLite (FTS5)
                                 │
-                   ┌────────────┼────────────┐
-                   ▼            ▼            ▼
-              Dashboard    Reports    Knowledge Graph
+                   ┌────────────┼────────────┬──────────────┐
+                   ▼            ▼            ▼              ▼
+              Dashboard    Reports    Knowledge      Strategy Engine
+                                       Graph        (Reputation &
+                                                     Optionality)
             (FastAPI + HTMX + Alpine.js + D3.js)
 ```
 
@@ -142,6 +153,10 @@ Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF 
 | Graph Service | `src/core/graph.py` | Knowledge graph queries and co-occurrence analysis |
 | Suggestion Engine | `src/core/suggestions.py` | Related entry suggestions |
 | Summarization | `src/core/summarization.py` | Progressive entity summarization |
+| Move Evaluator | `src/core/evaluation.py` | 5-dimension initiative scoring engine |
+| Influence Tracker | `src/core/evaluation.py` | Weekly influence delta tracking and trending |
+| Strategic Simulator | `src/core/simulation.py` | Weekly strategic simulation protocol |
+| Strategy Repository | `src/storage/strategy_repository.py` | Stakeholder, initiative, asset, influence persistence |
 | Repository | `src/storage/repository.py` | SQLite CRUD with FTS5 search |
 | Vector Store | `src/retrieval/vector_store.py` | Qdrant embedding storage and similarity search |
 | Routes | `src/api/routes.py` | All FastAPI route handlers |
@@ -153,10 +168,18 @@ All entries include: `id` (UUID), `type` (enum), `title`, `summary`, `raw_conten
 ## Development
 
 ```bash
-pytest                        # Run tests (191 tests)
+pytest                        # Run tests (246 tests)
 pytest -x -q                  # Quick run, stop on first failure
 LOG_LEVEL=DEBUG second-brain  # Debug logging
 ```
+
+### Seed Demo Data
+
+```bash
+python -m scripts.seed_strategy_demo
+```
+
+Populates the strategy engine with example stakeholders, initiatives, assets, and influence records for exploring the dashboard.
 
 ## Entry Types
 
