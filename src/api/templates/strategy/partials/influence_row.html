@@ -1,0 +1,15 @@
+<div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
+    <span style="font-weight: 600; min-width: 85px;">{{ delta.week_start }}</span>
+    <span style="font-size: 1rem; font-weight: 700;
+        {% if delta.delta_score >= 5 %}color: var(--color-green);
+        {% elif delta.delta_score >= 2 %}color: var(--color-blue);
+        {% else %}color: var(--text-secondary);{% endif %}">
+        +{{ delta.delta_score }}
+    </span>
+    <span style="color: var(--text-secondary); font-size: 0.7rem;">
+        {% if delta.advice_sought %}✓ advice{% endif %}
+        {% if delta.decision_changed %}✓ decision{% endif %}
+        {% if delta.framing_adopted %}✓ framing{% endif %}
+        {% if delta.consultation_count > 0 %}({{ delta.consultation_count }} consults){% endif %}
+    </span>
+</div>

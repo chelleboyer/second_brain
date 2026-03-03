@@ -16,8 +16,10 @@ from src.classification.classifier import Classifier
 from src.classification.provider import HuggingFaceProvider
 from src.config import get_settings
 from src.core.entity_resolution import EntityRepository, EntityResolver
+from src.core.evaluation import MoveEvaluationEngine
 from src.core.graph import GraphService
 from src.core.pipeline import CapturePipeline
+from src.core.simulation import InfluenceTracker, StrategicSimulator
 from src.core.suggestions import SuggestionEngine
 from src.core.summarization import SummarizationService
 from src.retrieval.recall import RecallService
@@ -29,6 +31,7 @@ from src.retrieval.vector_store import VectorStore
 from src.slack.collector import SlackCollector
 from src.storage.database import Database
 from src.storage.repository import BrainEntryRepository
+from src.storage.strategy_repository import StrategyRepository
 
 
 def configure_logging(log_level: str = "INFO") -> None:
@@ -186,6 +189,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     )
     app_state.suggestion_engine = suggestion_engine
     log.info("suggestion_engine_initialized")
+
+    # Phase II: Initialize strategic positioning services
+    strategy_repo = StrategyRepository(database)
+    app_state.strategy_repo = strategy_repo
+
+    evaluation_engine = MoveEvaluationEngine(strategy_repo)
+    app_state.evaluation_engine = evaluation_engine
+
+    influence_tracker = InfluenceTracker(strategy_repo)
+    app_state.influence_tracker = influence_tracker
+
+    strategic_simulator = StrategicSimulator(
+        strategy_repo=strategy_repo,
+        influence_tracker=influence_tracker,
+        provider=provider,
+    )
+    app_state.strategic_simulator = strategic_simulator
+    log.info("strategic_positioning_initialized")
 
     # Phase 4: Initialize Slack command handler
     slack_commands = SlackCommandHandler(

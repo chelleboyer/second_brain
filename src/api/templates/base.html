@@ -19,7 +19,7 @@
     <!-- CDN: Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 </head>
-<body x-data="{ sidebarOpen: false }">
+<body x-data="{ sidebarOpen: false, simpleMode: localStorage.getItem('sb-simple') === 'true' }">
 
     <!-- Mobile overlay -->
     <div class="mobile-overlay"
@@ -27,39 +27,165 @@
          @click="sidebarOpen = false"></div>
 
     <div class="app-shell">
-        <!-- ── Sidebar ─────────────────────────────────────────── -->
-        <aside class="sidebar" :class="{ 'open': sidebarOpen }">
-            <div class="sidebar-brand">
-                <span style="font-size: 1.3rem;">🧠</span>
-                <h1>Second Brain</h1>
+        <!-- ── Top Bar ──────────────────────────────────────────── -->
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="mobile-toggle" @click="sidebarOpen = !sidebarOpen">☰</button>
+                <a href="/" class="top-bar-brand">
+                    <span class="brand-icon">🧠</span>
+                    <span class="brand-text">SECOND BRAIN</span>
+                    {% block brand_badge %}
+                    <span class="brand-badge"
+                          hx-get="/api/entry-count"
+                          hx-trigger="load"
+                          hx-swap="innerHTML">—</span>
+                    {% endblock %}
+                </a>
             </div>
 
+            <div class="top-bar-center">
+                <div class="global-search-wrap">
+                    <span class="global-search-icon">🔍</span>
+                    <input type="text"
+                           class="global-search-input"
+                           placeholder="Search your brain..."
+                           name="global-q"
+                           hx-get="/search"
+                           hx-trigger="keyup changed delay:300ms"
+                           hx-target="#global-search-results"
+                           hx-include="[name='search-type'], [name='search-entity']"
+                           autocomplete="off">
+                    <kbd class="search-shortcut" title="Press / to focus search">/</kbd>
+                </div>
+            </div>
+
+            <div class="top-bar-right">
+                {% block header_actions %}
+                <button class="top-bar-cta"
+                        onclick="document.getElementById('capture-modal').classList.add('active'); setTimeout(function(){ document.querySelector('.capture-modal-textarea').focus(); }, 100);"
+                        title="Quick Capture (Ctrl+K)">
+                    <span>✓</span> Capture
+                </button>
+                {% endblock %}
+
+                <button class="top-bar-icon-btn"
+                        hx-post="/refresh"
+                        hx-target="body"
+                        title="Sync from Slack">
+                    🔔
+                </button>
+                <a href="/insights" class="top-bar-icon-btn" title="Insights">📊</a>
+                <a href="/graph" class="top-bar-icon-btn" title="Knowledge Graph">🔗</a>
+                <button class="top-bar-icon-btn user-avatar" onclick="toggleTheme()" title="Toggle theme">
+                    🌓
+                </button>
+            </div>
+        </header>
+
+        <!-- ── Sidebar ─────────────────────────────────────────── -->
+        <aside class="sidebar" :class="{ 'open': sidebarOpen }">
             <nav class="sidebar-nav">
+                <!--
+                    OOUX Information Architecture
+                    ─────────────────────────────
+                    Objects:  Entry, Project, Entity/Topic
+                    Facets:   Type (Idea, Task, Decision, etc.)
+                    Views:    Inbox, Pinned, Archive
+                    Analysis: Insights, Graph, Reports
+                -->
+
+                <!-- Primary Views (Entry object views) -->
                 <div class="nav-section">
-                    <div class="nav-section-label">Main</div>
                     <a href="/" class="nav-link {% block nav_dashboard %}{% endblock %}">
-                        <span class="nav-icon">📊</span>
-                        <span>Dashboard</span>
+                        <span class="nav-icon">📥</span>
+                        <span>Inbox</span>
+                        <span class="nav-badge"
+                              hx-get="/api/inbox-count"
+                              hx-trigger="load"
+                              hx-swap="innerHTML">—</span>
+                    </a>
+                    <a href="/?filter=pinned" class="nav-link {% block nav_pinned %}{% endblock %}">
+                        <span class="nav-icon">📌</span>
+                        <span>Pinned</span>
                     </a>
                 </div>
 
+                <!-- Object: Entry filtered by Type -->
                 <div class="nav-section">
-                    <div class="nav-section-label">Knowledge</div>
-                    <a href="/entities" class="nav-link {% block nav_entities %}{% endblock %}">
+                    <div class="nav-section-label">By Type</div>
+                    <a href="/?type=idea" class="nav-link {% block nav_ideas %}{% endblock %}">
+                        <span class="nav-icon">💡</span>
+                        <span>Ideas</span>
+                    </a>
+                    <a href="/?type=task" class="nav-link {% block nav_tasks %}{% endblock %}">
+                        <span class="nav-icon">☑️</span>
+                        <span>Tasks</span>
+                    </a>
+                    <a href="/?type=decision" class="nav-link {% block nav_decisions %}{% endblock %}">
+                        <span class="nav-icon">⚖️</span>
+                        <span>Decisions</span>
+                    </a>
+                    <a href="/?type=strategy" class="nav-link {% block nav_strategies %}{% endblock %}">
+                        <span class="nav-icon">🎯</span>
+                        <span>Goals</span>
+                    </a>
+                    <a href="/?type=note" class="nav-link {% block nav_notes %}{% endblock %}">
+                        <span class="nav-icon">📝</span>
+                        <span>Notes</span>
+                    </a>
+                    <a href="/?type=risk" class="nav-link {% block nav_risks %}{% endblock %}">
+                        <span class="nav-icon">⚠️</span>
+                        <span>Risks</span>
+                    </a>
+                    <a href="/?type=arch_note" class="nav-link {% block nav_arch %}{% endblock %}">
                         <span class="nav-icon">🏗️</span>
-                        <span>Entities</span>
+                        <span>Architecture</span>
+                    </a>
+                </div>
+
+                <!-- Objects: Projects & Topics -->
+                <div class="nav-section">
+                    <div class="nav-section-label">Organize</div>
+                    <a href="/reports/projects" class="nav-link {% block nav_projects %}{% endblock %}">
+                        <span class="nav-icon">📁</span>
+                        <span>Projects</span>
+                    </a>
+                    <a href="/entities" class="nav-link {% block nav_entities %}{% endblock %}">
+                        <span class="nav-icon">🏷️</span>
+                        <span>Topics</span>
+                    </a>
+                </div>
+
+                <!-- Analysis Views -->
+                <div class="nav-section">
+                    <div class="nav-section-label">Analyze</div>
+                    <a href="/strategy" class="nav-link {% block nav_strategy %}{% endblock %}">
+                        <span class="nav-icon">♟️</span>
+                        <span>Strategy</span>
+                    </a>
+                    <a href="/insights" class="nav-link {% block nav_insights %}{% endblock %}">
+                        <span class="nav-icon">📊</span>
+                        <span>Insights</span>
                     </a>
                     <a href="/graph" class="nav-link {% block nav_graph %}{% endblock %}">
                         <span class="nav-icon">🔗</span>
-                        <span>Knowledge Graph</span>
+                        <span>Graph</span>
+                    </a>
+                    <a href="/reports/weekly" class="nav-link {% block nav_reports %}{% endblock %}">
+                        <span class="nav-icon">📄</span>
+                        <span>Weekly Report</span>
+                    </a>
+                    <a href="/reports/trends" class="nav-link {% block nav_trends %}{% endblock %}">
+                        <span class="nav-icon">📈</span>
+                        <span>Trends</span>
                     </a>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-section-label">Analysis</div>
-                    <a href="/insights" class="nav-link {% block nav_insights %}{% endblock %}">
-                        <span class="nav-icon">📈</span>
-                        <span>Insights</span>
+                <!-- Bottom: Archive + Dev tools -->
+                <div class="nav-section nav-section-bottom">
+                    <a href="/?show_archived=true" class="nav-link {% block nav_archive %}{% endblock %}">
+                        <span class="nav-icon">📦</span>
+                        <span>Archive</span>
                     </a>
                     <a href="/eval" class="nav-link {% block nav_eval %}{% endblock %}">
                         <span class="nav-icon">🧪</span>
@@ -67,38 +193,49 @@
                     </a>
                 </div>
             </nav>
-
-            <div class="sidebar-footer">
-                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-                    🌓
-                </button>
-            </div>
         </aside>
 
         <!-- ── Main Content ────────────────────────────────────── -->
         <div class="main-content">
-            <div class="page-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <button class="mobile-toggle" @click="sidebarOpen = !sidebarOpen">☰</button>
-                    <h2>{% block page_heading %}🧠 Second Brain{% endblock %}</h2>
-                </div>
-                <div class="header-actions">
-                    {% block header_actions %}
-                    <button class="btn btn-primary btn-sm"
-                            hx-post="/refresh"
-                            hx-target="body"
-                            hx-indicator=".btn-primary">
-                        🔄 Refresh
-                    </button>
-                    {% endblock %}
-                </div>
-            </div>
-
             <div class="page-body">
                 {% block content %}{% endblock %}
             </div>
         </div>
     </div>
+
+    <!-- ── Capture Modal ───────────────────────────────────────── -->
+    <div class="capture-modal-overlay" id="capture-modal"
+         onclick="if(event.target===this) this.classList.remove('active')">
+        <div class="capture-modal">
+            <div class="capture-modal-header">
+                <h3>✓ Quick Capture</h3>
+                <button class="capture-modal-close"
+                        onclick="document.getElementById('capture-modal').classList.remove('active')">✕</button>
+            </div>
+            <form hx-post="/capture"
+                  hx-target="#feed-entries"
+                  hx-swap="afterbegin"
+                  hx-on::after-request="captureComplete(event)"
+                  x-data="{ text: '' }"
+                  @keydown.ctrl.enter="$el.requestSubmit()"
+                  @keydown.meta.enter="$el.requestSubmit()">
+                <textarea name="text" class="capture-modal-textarea"
+                          placeholder="What's on your mind?"
+                          rows="4" required x-model="text"></textarea>
+                <div class="capture-modal-footer">
+                    <span class="capture-hint" x-show="text.length > 0" x-cloak>
+                        <span x-text="text.length"></span> chars · Ctrl+Enter to submit
+                    </span>
+                    <button type="submit" class="top-bar-cta">
+                        <span>⚡</span> Capture
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Global search results dropdown -->
+    <div id="global-search-results" class="global-search-dropdown"></div>
 
     <!-- Toast container -->
     <div class="toast-container" id="toast-container"></div>
@@ -119,6 +256,26 @@
             if (saved) document.documentElement.setAttribute('data-theme', saved);
         })();
 
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // "/" to focus search
+            if (e.key === '/' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                document.querySelector('.global-search-input').focus();
+            }
+            // Ctrl+K for capture
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('capture-modal').classList.add('active');
+                setTimeout(function(){ document.querySelector('.capture-modal-textarea').focus(); }, 100);
+            }
+            // Escape to close
+            if (e.key === 'Escape') {
+                document.getElementById('capture-modal').classList.remove('active');
+                document.querySelector('.global-search-input').blur();
+            }
+        });
+
         // Toast helper
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
@@ -136,6 +293,35 @@
             });
         }
 
+        // Capture completion handler — works from any page
+        function captureComplete(event) {
+            var modal = document.getElementById('capture-modal');
+            var textarea = modal.querySelector('.capture-modal-textarea');
+            var detail = event.detail;
+
+            // Close modal and clear text
+            modal.classList.remove('active');
+            textarea.value = '';
+            // Reset Alpine.js model
+            if (textarea.__x_model) {
+                textarea.__x_model.set('');
+            }
+
+            if (detail.successful) {
+                showToast('Captured successfully!');
+                // If #feed-entries doesn't exist (not on dashboard), the response
+                // was still processed by HTMX but had no target — that's fine.
+                // If it does exist, HTMX already prepended the card.
+                if (!document.getElementById('feed-entries')) {
+                    // Not on dashboard; update badge counts
+                    htmx.ajax('GET', '/api/entry-count', {target: '.brand-badge', swap: 'innerHTML'});
+                    htmx.ajax('GET', '/api/inbox-count', {target: '.nav-badge', swap: 'innerHTML'});
+                }
+            } else {
+                showToast('Capture failed — please try again', 'error');
+            }
+        }
+
         // Close sidebar on nav click (mobile)
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', () => {
@@ -143,6 +329,15 @@
                     document.querySelector('[x-data]').__x.$data.sidebarOpen = false;
                 }
             });
+        });
+
+        // Close search dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('global-search-results');
+            const searchWrap = document.querySelector('.global-search-wrap');
+            if (dropdown && searchWrap && !searchWrap.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.innerHTML = '';
+            }
         });
     </script>
 </body>

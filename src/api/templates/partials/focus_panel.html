@@ -1,0 +1,92 @@
+{% set display = type_display.get(focus_entry.type) %}
+
+<div class="focus-panel-inner">
+    <h3 class="focus-panel-label">Entry Focus</h3>
+
+    <div class="focus-entry-header">
+        <div class="focus-accent-bar"></div>
+        <h2 class="focus-entry-title">{{ focus_entry.title }}</h2>
+    </div>
+
+    <div class="focus-meta-row">
+        {% if display %}
+            <span class="type-chip chip-{{ display.color }}">{{ display.label }}</span>
+        {% endif %}
+        {% if focus_entry.project %}
+            <span class="focus-tag">#{{ focus_entry.project }}</span>
+        {% endif %}
+        <span class="meta-sep">·</span>
+        <span class="focus-meta-text">{{ focus_entry.author_name }}</span>
+        <span class="meta-sep">·</span>
+        <span class="focus-meta-text">{{ relative_time(focus_entry.created_at) }}</span>
+        {% if focus_entry.pinned_at %}
+            <button class="focus-pin-btn pinned"
+                    hx-post="/entry/{{ focus_entry.id }}/unpin"
+                    hx-target="#entry-{{ focus_entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Unpin this entry">📌</button>
+        {% else %}
+            <button class="focus-pin-btn"
+                    hx-post="/entry/{{ focus_entry.id }}/pin"
+                    hx-target="#entry-{{ focus_entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Pin this entry">📌</button>
+        {% endif %}
+    </div>
+
+    <div class="focus-entry-content">
+        <p>{{ focus_entry.summary }}</p>
+    </div>
+
+    <!-- Entity pills -->
+    {% if focus_entry.extracted_entities %}
+    <div class="entity-pills" style="margin-bottom: 16px;">
+        {% for ent in focus_entry.extracted_entities %}
+            <a href="/entities?q={{ ent }}" class="entity-pill">{{ ent }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Primary Action Row -->
+    <div class="focus-actions">
+        {% if focus_entry.slack_permalink %}
+        <a href="{{ focus_entry.slack_permalink }}" target="_blank" class="focus-action-btn">
+            <span>🔗</span> Open in Slack
+        </a>
+        {% endif %}
+        <button class="focus-action-btn" onclick="copyToClipboard('{{ focus_entry.title|e }}', '{{ focus_entry.summary|e }}')">
+            <span>📋</span> Copy
+        </button>
+        <div class="focus-action-btn focus-reclassify-wrap">
+            <span>⇄</span>
+            <select class="reclassify-select"
+                    hx-post="/entry/{{ focus_entry.id }}/reclassify"
+                    hx-target="#entry-{{ focus_entry.id }}"
+                    hx-swap="outerHTML"
+                    name="new_type">
+                <option value="" disabled selected>Reclassify</option>
+                {% for t in classifiable_types %}
+                    {% set td = type_display.get(t) %}
+                    <option value="{{ t.value }}" {% if t == focus_entry.type %}disabled{% endif %}>
+                        {{ td.emoji }} {{ td.label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="focus-secondary-actions">
+        <button class="focus-action-btn-secondary"
+                hx-post="/entry/{{ focus_entry.id }}/archive"
+                hx-target="#entry-{{ focus_entry.id }}"
+                hx-swap="outerHTML">
+            <span>⏳</span> Snooze
+        </button>
+    </div>
+
+    <div class="focus-add-project">
+        <a href="/entry/{{ focus_entry.id }}" class="focus-add-project-link">
+            + View Full Detail
+        </a>
+    </div>
+</div>

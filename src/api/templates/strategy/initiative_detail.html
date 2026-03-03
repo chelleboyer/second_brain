@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block page_title %} — {{ initiative.title }}{% endblock %}
+{% block nav_strategy %}active{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px;">
+    <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">
+        <a href="/strategy" style="color: var(--text-secondary); text-decoration: none;">♟️ Strategy</a>
+        <span style="color: var(--text-secondary);"> / </span>
+        <a href="/strategy/initiatives" style="color: var(--text-secondary); text-decoration: none;">Initiatives</a>
+        <span style="color: var(--text-secondary);"> / </span>
+        <span>{{ initiative.title }}</span>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+            <div>
+                {% if initiative.initiative_type.value == 'mandatory' %}
+                <span class="type-chip" style="font-size: 0.8rem; background: rgba(239,68,68,0.15); color: var(--color-red);">
+                    📌 Mandatory
+                </span>
+                {% else %}
+                <span class="type-chip type-chip-{{ initiative.category.value }}" style="font-size: 0.8rem;">
+                    {{ initiative_category_display[initiative.category].emoji }}
+                    {{ initiative_category_display[initiative.category].label }}
+                </span>
+                {% endif %}
+                <span class="type-chip" style="font-size: 0.75rem; margin-left: 0.25rem;">
+                    {{ visibility_display[initiative.visibility].emoji }}
+                    {{ visibility_display[initiative.visibility].label }}
+                </span>
+                <h2 style="margin: 0.5rem 0 0;">{{ initiative.title }}</h2>
+            </div>
+            {% if initiative.initiative_type.value == 'scored' %}
+            <div style="text-align: center;">
+                <div style="font-size: 2rem; font-weight: 700;">{{ initiative.scores.total }}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">/ 25</div>
+            </div>
+            {% else %}
+            <div style="text-align: center;">
+                <div style="font-size: 2rem;">📌</div>
+                <div class="text-muted" style="font-size: 0.75rem;">must-do</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if initiative.description %}
+        <p style="margin-bottom: 1rem;">{{ initiative.description }}</p>
+        {% endif %}
+
+        <!-- Score Breakdown (scored only) -->
+        {% if initiative.initiative_type.value == 'scored' %}
+        <div style="margin-bottom: 1rem;">
+            <h4 style="margin: 0 0 0.5rem;">Score Breakdown</h4>
+            {% set scores = [
+                ("Authority", initiative.scores.authority),
+                ("Asymmetric Info", initiative.scores.asymmetric_info),
+                ("Future Mobility", initiative.scores.future_mobility),
+                ("Reusable Leverage", initiative.scores.reusable_leverage),
+                ("Right Visibility", initiative.scores.right_visibility),
+            ] %}
+            {% for label, val in scores %}
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                <span style="font-size: 0.8rem; width: 140px;">{{ label }}</span>
+                <div style="flex: 1; background: var(--bg-secondary); border-radius: 4px; height: 20px;">
+                    <div style="width: {{ (val / 5 * 100)|int }}%; background: {% if val >= 4 %}var(--color-gold){% elif val >= 2 %}var(--color-blue){% else %}var(--text-secondary){% endif %}; height: 100%; border-radius: 4px; transition: width 0.3s;"></div>
+                </div>
+                <span style="font-size: 0.85rem; font-weight: 600; width: 30px; text-align: right;">{{ val }}/5</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Metadata -->
+        <div style="display: flex; gap: 2rem; font-size: 0.8rem; color: var(--text-secondary);">
+            <span>Risk: {{ initiative.risk_level }}/5</span>
+            <span>Status: {{ initiative.status }}</span>
+            <span>Created: {{ relative_time(initiative.created_at) }}</span>
+        </div>
+
+        {% if initiative.notes %}
+        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px;">
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Notes</div>
+            <div style="font-size: 0.85rem;">{{ initiative.notes }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Linked Items -->
+    <div class="card" style="padding: 1.5rem; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0 0 1rem;">🔗 Linked Items</h3>
+
+        {% if initiative.initiative_type.value == 'mandatory' and links|length == 0 %}
+        <div style="padding: 0.75rem; margin-bottom: 1rem; background: rgba(255,215,0,0.08); border-left: 3px solid var(--color-gold); border-radius: 4px; font-size: 0.8rem;">
+            💡 Mandatory initiatives become more valuable when linked to entries and entities.
+            Use the search below to connect this initiative to your knowledge graph.
+        </div>
+        {% endif %}
+
+        <!-- Existing Links -->
+        <div id="initiative-links">
+            {% for link in links %}
+                {% include "strategy/partials/link_item.html" %}
+            {% else %}
+                <p class="text-muted" style="font-size: 0.85rem;" id="no-links-msg">No linked items yet.</p>
+            {% endfor %}
+        </div>
+
+        <!-- Link Search Picker -->
+        <div x-data="linkPicker()" style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+            <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">Add Link</div>
+            <div style="position: relative;">
+                <input type="text" x-model="query" @input.debounce.300ms="search()"
+                       placeholder="Search entries and entities..."
+                       style="width:100%;padding:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+
+                <!-- Results Dropdown -->
+                <div x-show="results.length > 0" x-transition
+                     style="position:absolute;top:100%;left:0;right:0;z-index:10;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:6px;margin-top:4px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                    <template x-for="item in results" :key="item.id">
+                        <button @click="addLink(item)"
+                                style="display:flex;align-items:center;gap:0.5rem;width:100%;padding:0.5rem 0.75rem;border:none;background:none;color:var(--text-primary);cursor:pointer;text-align:left;font-size:0.85rem;"
+                                onmouseover="this.style.background='var(--bg-secondary)'"
+                                onmouseout="this.style.background='none'">
+                            <span x-text="item.subtitle" style="font-size:0.75rem;"></span>
+                            <span x-text="item.title" style="font-weight:500;"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Optional note field (shown after selecting) -->
+            <div x-show="selected" x-transition style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                <input type="text" x-model="note" placeholder="Link note (optional)"
+                       style="flex:1;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;font-size:0.85rem;">
+                <button @click="submitLink()" class="btn btn-primary" style="font-size:0.8rem;">Link</button>
+                <button @click="cancel()" class="btn btn-secondary" style="font-size:0.8rem;">✕</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function linkPicker() {
+        return {
+            query: '',
+            results: [],
+            selected: null,
+            note: '',
+            async search() {
+                if (this.query.length < 2) { this.results = []; return; }
+                const resp = await fetch('/api/strategy/search-linkable?q=' + encodeURIComponent(this.query));
+                this.results = await resp.json();
+            },
+            addLink(item) {
+                this.selected = item;
+                this.results = [];
+                this.query = item.title;
+            },
+            cancel() {
+                this.selected = null;
+                this.query = '';
+                this.note = '';
+            },
+            async submitLink() {
+                if (!this.selected) return;
+                const form = new FormData();
+                form.append('linked_type', this.selected.type);
+                form.append('linked_id', this.selected.id);
+                form.append('link_note', this.note);
+                const resp = await fetch('/strategy/initiative/{{ initiative.id }}/links', {
+                    method: 'POST',
+                    body: form,
+                });
+                if (resp.ok) {
+                    const html = await resp.text();
+                    const noMsg = document.getElementById('no-links-msg');
+                    if (noMsg) noMsg.remove();
+                    document.getElementById('initiative-links').insertAdjacentHTML('beforeend', html);
+                    this.cancel();
+                }
+            }
+        };
+    }
+    </script>
+
+    <button hx-delete="/strategy/initiative/{{ initiative.id }}"
+            hx-confirm="Delete this initiative?"
+            hx-target="body"
+            hx-swap="innerHTML"
+            onclick="setTimeout(function(){window.location='/strategy/initiatives';},200)"
+            class="btn btn-secondary"
+            style="font-size: 0.8rem; color: var(--color-red);">
+        🗑️ Delete Initiative
+    </button>
+</div>
+{% endblock %}

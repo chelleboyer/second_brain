@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block page_title %} — Strategy{% endblock %}
+{% block nav_strategy %}active{% endblock %}
+
+{% block content %}
+<div class="strategy-dashboard">
+    <!-- Header -->
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <h1 style="margin: 0;">♟️ Strategic Positioning</h1>
+            <p class="text-muted" style="margin: 0.25rem 0 0;">Reputation &amp; Optionality Engine</p>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+            <a href="/strategy/initiatives" class="btn btn-secondary">📋 Initiatives</a>
+            <a href="/strategy/stakeholders" class="btn btn-secondary">👥 Stakeholders</a>
+            <a href="/strategy/assets" class="btn btn-secondary">🏆 Assets</a>
+        </div>
+    </div>
+
+    <!-- KPI Meters -->
+    <div class="panel-grid" style="grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+        <!-- Influence Meter -->
+        <div class="card" style="text-align: center; padding: 1.25rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.25rem;">
+                {% if influence_trend.direction == 'up' %}📈{% elif influence_trend.direction == 'down' %}📉{% else %}➡️{% endif %}
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ influence_trend.average }}</div>
+            <div class="text-muted" style="font-size: 0.8rem;">Influence Score</div>
+            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                Trend: <strong>{{ influence_trend.direction }}</strong>
+            </div>
+        </div>
+
+        <!-- Strategic Initiatives -->
+        <div class="card" style="text-align: center; padding: 1.25rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.25rem;">♟️</div>
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ summary.initiative_counts.get('strategic', 0) }}</div>
+            <div class="text-muted" style="font-size: 0.8rem;">Strategic Moves</div>
+            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                {{ summary.initiative_counts.get('supportive', 0) }} supportive,
+                {{ summary.initiative_counts.get('maintenance', 0) }} maintenance
+            </div>
+        </div>
+
+        <!-- Stakeholders -->
+        <div class="card" style="text-align: center; padding: 1.25rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.25rem;">👥</div>
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ summary.stakeholder_count }}</div>
+            <div class="text-muted" style="font-size: 0.8rem;">Stakeholders</div>
+        </div>
+
+        <!-- Assets -->
+        <div class="card" style="text-align: center; padding: 1.25rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.25rem;">🏆</div>
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ (summary.asset_counts.get('reputation', 0) + summary.asset_counts.get('optionality', 0)) }}</div>
+            <div class="text-muted" style="font-size: 0.8rem;">Strategic Assets</div>
+            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                {{ summary.asset_counts.get('reputation', 0) }} rep,
+                {{ summary.asset_counts.get('optionality', 0) }} opt
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid: Simulation + Influence -->
+    <div class="panel-grid" style="grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+
+        <!-- Weekly Simulation Panel -->
+        <div class="card" style="padding: 1.25rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                <h3 style="margin:0;">🎯 Weekly Simulation</h3>
+                <form hx-post="/strategy/simulate"
+                      hx-target="#simulation-output"
+                      hx-swap="innerHTML"
+                      style="margin:0;">
+                    <button type="submit" class="btn btn-primary" style="font-size:0.8rem;">
+                        ▶ Run Simulation
+                    </button>
+                </form>
+            </div>
+            <div id="simulation-output">
+                {% if latest_simulation %}
+                    {% include "strategy/partials/simulation_result.html" with context %}
+                {% else %}
+                    <p class="text-muted">No simulation run yet. Click "Run Simulation" to generate your weekly strategic move.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Influence Tracking Panel -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem;">📊 Influence Tracking</h3>
+
+            <!-- Influence Log Form -->
+            <form hx-post="/strategy/influence"
+                  hx-target="#influence-log"
+                  hx-swap="afterbegin"
+                  style="margin-bottom: 1rem;">
+                <input type="date" name="week_start" required
+                       style="width:100%;padding:0.4rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.5rem;">
+                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" name="advice_sought" value="true"> Advice sought
+                    </label>
+                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" name="decision_changed" value="true"> Decision changed
+                    </label>
+                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
+                        <input type="checkbox" name="framing_adopted" value="true"> Framing adopted
+                    </label>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+                    <label style="font-size:0.8rem;white-space:nowrap;">Consultations:</label>
+                    <input type="number" name="consultation_count" value="0" min="0" max="20"
+                           style="width:60px;padding:0.3rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                </div>
+                <textarea name="notes" placeholder="Notes..." rows="2"
+                          style="width:100%;padding:0.4rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;font-size:0.8rem;"></textarea>
+                <button type="submit" class="btn btn-primary" style="width:100%;font-size:0.8rem;">Log Week</button>
+            </form>
+
+            <!-- Influence History -->
+            <div id="influence-log" style="max-height:300px;overflow-y:auto;">
+                {% for delta in influence_deltas %}
+                    {% include "strategy/partials/influence_row.html" %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Grid: Visibility Matrix + Top Initiatives -->
+    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+
+        <!-- Visibility Distribution -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem;">🔭 Visibility Matrix</h3>
+            {% for vis, count in summary.visibility_distribution.items() %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                <span>
+                    {{ visibility_display[vis].emoji if vis in visibility_display else '❓' }}
+                    {{ visibility_display[vis].label if vis in visibility_display else vis }}
+                </span>
+                <span style="font-weight: 600;">{{ count }}</span>
+            </div>
+            {% else %}
+            <p class="text-muted">No initiatives tracked yet.</p>
+            {% endfor %}
+            <div style="margin-top: 0.75rem;">
+                <small class="text-muted">Goal: Increase Executive + Market visibility.</small>
+            </div>
+        </div>
+
+        <!-- Top Initiatives -->
+        <div class="card" style="padding: 1.25rem;">
+            <h3 style="margin: 0 0 1rem;">🏁 Active Initiatives</h3>
+            {% for init in initiatives[:5] %}
+            <a href="/strategy/initiative/{{ init.id }}"
+               style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); text-decoration: none; color: var(--text-primary);">
+                <div>
+                    <span class="type-chip type-chip-{{ init.category.value }}"
+                          style="font-size: 0.7rem; padding: 0.15rem 0.4rem;">
+                        {{ initiative_category_display[init.category].emoji }}
+                        {{ initiative_category_display[init.category].label }}
+                    </span>
+                    <span style="margin-left: 0.4rem;">{{ init.title }}</span>
+                </div>
+                <span style="font-weight: 600; font-size: 0.85rem;">{{ init.scores.total }}/25</span>
+            </a>
+            {% else %}
+            <p class="text-muted">No active initiatives. <a href="/strategy/initiatives">Create one</a>.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

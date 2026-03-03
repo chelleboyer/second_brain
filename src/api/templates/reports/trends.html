@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block nav_reports %}active{% endblock %}
+{% block page_heading %}📈 Trends{% endblock %}
+
+{% block content %}
+
+{# ── Velocity Banner ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="report-header">
+        <div>
+            <h2 class="report-title">Capture Velocity</h2>
+            <span class="report-subtitle">Last 7 days vs. previous 7 days</span>
+        </div>
+        <div class="report-kpis">
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--accent);">{{ recent_7 }}</span>
+                <span class="report-kpi-label">This Week</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--text-muted);">{{ prev_7 }}</span>
+                <span class="report-kpi-label">Last Week</span>
+            </div>
+            <div class="report-kpi">
+                {% if velocity_change > 0 %}
+                <span class="report-kpi-value" style="color:var(--green);">+{{ velocity_change }}%</span>
+                {% elif velocity_change < 0 %}
+                <span class="report-kpi-value" style="color:var(--red);">{{ velocity_change }}%</span>
+                {% else %}
+                <span class="report-kpi-value" style="color:var(--text-muted);">0%</span>
+                {% endif %}
+                <span class="report-kpi-label">Change</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--teal);">{{ counts.active }}</span>
+                <span class="report-kpi-label">Total Active</span>
+            </div>
+        </div>
+    </div>
+
+    {# 30-day chart #}
+    {% if activity_30d %}
+    <div style="margin-top:1rem;">
+        <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px; font-weight:500;">30-Day Capture History</div>
+        <div class="report-sparkline report-sparkline-lg">
+            {% set max_count = activity_30d|map(attribute='count')|max %}
+            {% for day_data in activity_30d %}
+                {% set bar_h = ((day_data.count / max_count) * 64)|round|int if max_count > 0 else 2 %}
+                <div class="report-spark-bar" style="height:{{ bar_h }}px;"
+                     title="{{ day_data.day }}: {{ day_data.count }} entries"></div>
+            {% endfor %}
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-muted); margin-top:2px;">
+            <span>{{ activity_30d[0].day if activity_30d else '' }}</span>
+            <span>{{ activity_30d[-1].day if activity_30d else '' }}</span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{# ── Left: Type Distribution ── #}
+<div class="panel">
+    <h2 class="panel-title"><span>🏷️ Type Distribution</span></h2>
+    {% if type_breakdown %}
+    {% set total_types = type_breakdown.values()|sum %}
+    {% set max_type = type_breakdown.values()|max %}
+    {% for type_key, count in type_breakdown.items()|sort(attribute='1', reverse=True) %}
+        {% set display = type_display.get(type_key) %}
+        {% if display %}
+        <div class="report-dist-row">
+            <div class="report-dist-label">
+                <span class="type-chip chip-{{ display.color }}" style="font-size:0.7rem; padding:1px 6px;">{{ display.emoji }} {{ display.label }}</span>
+                <span class="report-dist-pct">{{ ((count / total_types) * 100)|round|int }}%</span>
+            </div>
+            <div class="report-dist-bar-wrap">
+                <div class="report-dist-bar" style="width:{{ ((count / max_type) * 100)|round|int }}%; background:var(--{{ display.color }});"></div>
+            </div>
+            <span class="report-dist-count">{{ count }}</span>
+        </div>
+        {% endif %}
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted); font-size:0.85rem;">No entries yet.</div>
+    {% endif %}
+</div>
+
+{# ── Right: PARA Distribution + Entity hotspots ── #}
+<div class="panel">
+    <h2 class="panel-title"><span>📚 PARA Distribution</span></h2>
+    {% if para_breakdown %}
+    {% set total_para = para_breakdown.values()|sum %}
+    {% set max_para = para_breakdown.values()|max %}
+    {% for para_key, count in para_breakdown.items()|sort(attribute='1', reverse=True) %}
+        {% set pd = para_display.get(para_key) %}
+        {% if pd %}
+        <div class="report-dist-row">
+            <div class="report-dist-label">
+                <span>{{ pd.emoji }} {{ pd.label }}</span>
+                <span class="report-dist-pct">{{ ((count / total_para) * 100)|round|int }}%</span>
+            </div>
+            <div class="report-dist-bar-wrap">
+                <div class="report-dist-bar" style="width:{{ ((count / max_para) * 100)|round|int }}%; background:var(--{{ pd.color }});"></div>
+            </div>
+            <span class="report-dist-count">{{ count }}</span>
+        </div>
+        {% endif %}
+    {% endfor %}
+    {% else %}
+    <div style="color:var(--text-muted); font-size:0.85rem;">No PARA data yet.</div>
+    {% endif %}
+
+    {# Entity hotspots #}
+    {% if all_entities %}
+    <h2 class="panel-title" style="margin-top:1.5rem;"><span>🔥 Top Entities</span></h2>
+    <div class="report-entity-list">
+        {% for entity in all_entities[:12] %}
+        <a href="/entity/{{ entity.id }}" class="report-entity-row" style="text-decoration:none; color:inherit;">
+            {% set ed = entity_display.get(entity.entity_type) %}
+            <span class="report-entity-name">{{ ed.emoji if ed }} {{ entity.name }}</span>
+            <span class="report-entity-mentions">{{ entity.entry_count }} entries</span>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

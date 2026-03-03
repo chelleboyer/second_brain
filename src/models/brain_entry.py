@@ -41,6 +41,7 @@ class BrainEntry(BaseModel):
     thread_ts: str | None = None
     reply_count: int = 0
     archived_at: datetime | None = None
+    pinned_at: datetime | None = None
     source: Literal["slack", "manual"] = "slack"
 
     # Phase 1: Enhanced classification fields

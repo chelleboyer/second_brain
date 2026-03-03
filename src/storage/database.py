@@ -165,6 +165,146 @@ class Database:
                 ON entity_summaries(entity_id)
             """)
 
+            # ── Phase II: Strategic Positioning tables ───────────
+
+            # Stakeholders — people whose influence dynamics are tracked
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS stakeholders (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT '',
+                    influence_level INTEGER NOT NULL DEFAULT 5,
+                    incentives TEXT NOT NULL DEFAULT '',
+                    alignment_score INTEGER NOT NULL DEFAULT 0,
+                    dependency_on_you INTEGER NOT NULL DEFAULT 0,
+                    trust_score INTEGER NOT NULL DEFAULT 5,
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stakeholders_name
+                ON stakeholders(name COLLATE NOCASE)
+            """)
+
+            # Initiatives — projects scored for strategic alignment
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS initiatives (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    initiative_type TEXT NOT NULL DEFAULT 'scored',
+                    authority INTEGER NOT NULL DEFAULT 0,
+                    asymmetric_info INTEGER NOT NULL DEFAULT 0,
+                    future_mobility INTEGER NOT NULL DEFAULT 0,
+                    reusable_leverage INTEGER NOT NULL DEFAULT 0,
+                    right_visibility INTEGER NOT NULL DEFAULT 0,
+                    category TEXT NOT NULL DEFAULT 'maintenance',
+                    visibility TEXT NOT NULL DEFAULT 'hidden',
+                    risk_level INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    linked_entry_ids TEXT NOT NULL DEFAULT '[]',
+                    stakeholder_ids TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_initiatives_category
+                ON initiatives(category)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_initiatives_status
+                ON initiatives(status)
+            """)
+
+            # Initiative links — connects initiatives to entries/entities
+            await conn.execute("""                CREATE TABLE IF NOT EXISTS initiative_links (
+                    id TEXT PRIMARY KEY,
+                    initiative_id TEXT NOT NULL,
+                    linked_type TEXT NOT NULL,
+                    linked_id TEXT NOT NULL,
+                    linked_title TEXT NOT NULL DEFAULT '',
+                    link_note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (initiative_id) REFERENCES initiatives(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Strategic assets — reputation and optionality assets
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS strategic_assets (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    asset_type TEXT NOT NULL DEFAULT 'reputation',
+                    visibility TEXT NOT NULL DEFAULT 'hidden',
+                    reusability_score INTEGER NOT NULL DEFAULT 0,
+                    signaling_strength INTEGER NOT NULL DEFAULT 0,
+                    market_relevance INTEGER NOT NULL DEFAULT 0,
+                    compounding_potential INTEGER NOT NULL DEFAULT 0,
+                    portability_score INTEGER NOT NULL DEFAULT 0,
+                    market_demand INTEGER NOT NULL DEFAULT 0,
+                    monetization_potential INTEGER NOT NULL DEFAULT 0,
+                    time_to_deploy INTEGER NOT NULL DEFAULT 0,
+                    linked_initiative_ids TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_strategic_assets_type
+                ON strategic_assets(asset_type)
+            """)
+
+            # Influence deltas — weekly influence tracking
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS influence_deltas (
+                    id TEXT PRIMARY KEY,
+                    week_start TEXT NOT NULL,
+                    advice_sought INTEGER NOT NULL DEFAULT 0,
+                    decision_changed INTEGER NOT NULL DEFAULT 0,
+                    framing_adopted INTEGER NOT NULL DEFAULT 0,
+                    consultation_count INTEGER NOT NULL DEFAULT 0,
+                    notes TEXT NOT NULL DEFAULT '',
+                    delta_score INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_influence_deltas_week
+                ON influence_deltas(week_start)
+            """)
+
+            # Weekly simulations — strategic simulation outputs
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_simulations (
+                    id TEXT PRIMARY KEY,
+                    week_start TEXT NOT NULL,
+                    strategic_move TEXT NOT NULL DEFAULT '',
+                    maintenance_tasks TEXT NOT NULL DEFAULT '[]',
+                    position_building TEXT NOT NULL DEFAULT '[]',
+                    influence_trend TEXT NOT NULL DEFAULT '',
+                    optionality_trend TEXT NOT NULL DEFAULT '',
+                    top_initiatives TEXT NOT NULL DEFAULT '[]',
+                    raw_analysis TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_weekly_simulations_week
+                ON weekly_simulations(week_start)
+            """)
+
             # ── Migrations: add columns to existing tables ───────
             # SQLite's CREATE TABLE IF NOT EXISTS won't add new columns
             # to an already-existing table, so we ALTER TABLE instead.
@@ -175,6 +315,8 @@ class Database:
                 ("brain_entries", "novelty", "TEXT NOT NULL DEFAULT 'new'"),
                 ("brain_entries", "augments_entry_id", "TEXT"),
                 ("brain_entries", "content_hash", "TEXT"),
+                ("brain_entries", "pinned_at", "TEXT"),
+                ("initiatives", "initiative_type", "TEXT NOT NULL DEFAULT 'scored'"),
             ]
             for table, column, col_type in migration_columns:
                 try:
@@ -185,6 +327,23 @@ class Database:
                 except Exception:
                     # Column already exists — safe to ignore
                     pass
+
+            # Post-migration indexes (depend on migrated columns)
+            try:
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_initiatives_type
+                    ON initiatives(initiative_type)
+                """)
+            except Exception:
+                pass
+
+            try:
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_initiative_links_initiative
+                    ON initiative_links(initiative_id)
+                """)
+            except Exception:
+                pass
 
             # App state table for tracking last processed timestamp
             await conn.execute("""

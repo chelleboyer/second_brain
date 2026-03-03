@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 import httpx
@@ -12,6 +13,42 @@ from src.models.enums import CLASSIFIABLE_TYPES, EntryType, EntityType, PARACate
 
 log = structlog.get_logger(__name__)
 
+# ── Load classifier system instructions from markdown ────────────────────
+_INSTRUCTIONS_PATH = Path(__file__).parent / "classifier-instructions-meta.md"
+_SYSTEM_INSTRUCTIONS: str = ""
+if _INSTRUCTIONS_PATH.exists():
+    _SYSTEM_INSTRUCTIONS = _INSTRUCTIONS_PATH.read_text(encoding="utf-8")
+    log.debug("classifier_instructions_loaded", path=str(_INSTRUCTIONS_PATH))
+else:
+    log.warning("classifier_instructions_not_found", path=str(_INSTRUCTIONS_PATH))
+
+# ── Bridge prompt: maps the rich system instructions to our schema ───────
+CLASSIFICATION_USER_PROMPT = """Classify the following message. Return a single JSON object (NOT an array) with these fields:
+
+{{
+  "type": one of [idea, task, decision, risk, arch_note, strategy, note],
+  "title": concise title (max 10 words),
+  "summary": 1-2 sentence standalone summary,
+  "para_category": one of [project, area, resource, archive],
+  "confidence": float 0.0-1.0 (use "high"=0.9, "medium"=0.6, "low"=0.3 mapping),
+  "entities": [{{ "name": "...", "type": one of [project, person, technology, concept, organization] }}],
+  "project": project name or null,
+  "action_items": ["..."] or [],
+  "keywords": ["..."] 3-5 key topic words
+}}
+
+Apply the classification process from your system instructions:
+- Parse structure, detect metadata, extract entities
+- Create a standalone thought (the "summary" field)
+- Extract ALL named entities: people, projects, technologies, concepts, organizations
+- Set confidence based on content clarity
+
+Respond with ONLY valid JSON, no other text.
+
+Message:
+{text}"""
+
+# Legacy prompt used when system instructions file is missing
 CLASSIFICATION_PROMPT = """Analyze the following message and return a JSON object with these fields:
 
 1. "type": one of [idea, task, decision, risk, arch_note, strategy, note]
@@ -70,16 +107,31 @@ class HuggingFaceProvider:
     async def classify_and_extract(self, text: str) -> dict:
         """Classify text and extract title, summary, entities, PARA category, and more.
 
+        Uses system instructions from classifier-instructions-meta.md when available,
+        falling back to inline prompt when not.
+
         Returns dict with keys: type (EntryType), title (str), summary (str),
         para_category (PARACategory), confidence (float), entities (list[dict]),
         project (str|None), action_items (list[str]), keywords (list[str]).
         Raises ProviderError on total failure after retries.
         """
-        prompt = CLASSIFICATION_PROMPT.format(text=text[:2000])  # Truncate long messages
+        truncated = text[:2000]  # Truncate long messages
         url = self.CHAT_URL
+
+        # Build messages: system instructions + user prompt when available
+        if _SYSTEM_INSTRUCTIONS:
+            messages = [
+                {"role": "system", "content": _SYSTEM_INSTRUCTIONS},
+                {"role": "user", "content": CLASSIFICATION_USER_PROMPT.format(text=truncated)},
+            ]
+        else:
+            messages = [
+                {"role": "user", "content": CLASSIFICATION_PROMPT.format(text=truncated)},
+            ]
+
         payload = {
             "model": self.classification_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": 500,
         }
 
@@ -108,8 +160,24 @@ class HuggingFaceProvider:
             result["type"] = entry_type
             return result
 
-    def _build_extraction(self, parsed: dict, original_text: str) -> dict:
-        """Build a fully structured extraction dict from parsed LLM output."""
+    def _build_extraction(self, parsed: dict | list, original_text: str) -> dict:
+        """Build a fully structured extraction dict from parsed LLM output.
+
+        Handles two formats:
+        1. Direct schema: {"type": ..., "title": ..., "summary": ...}
+        2. Meta-enriched: {"thought": ..., "metadata": {...}} or array thereof
+        """
+        # If the model returned the array format from system instructions,
+        # take the first thought unit
+        if isinstance(parsed, list):
+            if len(parsed) == 0:
+                return self._fallback_extraction(original_text)
+            parsed = parsed[0]
+
+        # Handle meta-enriched format: {"thought": "...", "metadata": {...}}
+        if "thought" in parsed and "metadata" in parsed:
+            parsed = self._normalize_meta_format(parsed)
+
         entry_type = self._parse_type(parsed.get("type", ""))
         title = str(parsed.get("title", original_text[:60]))[:100]
         summary = str(parsed.get("summary", original_text[:200]))[:500]
@@ -173,6 +241,59 @@ class HuggingFaceProvider:
         }
 
     @staticmethod
+    def _normalize_meta_format(parsed: dict) -> dict:
+        """Convert meta-enriched format to our standard schema.
+
+        Input:  {"thought": "...", "metadata": {"source_type": ..., "people": [...], ...}}
+        Output: {"type": ..., "title": ..., "summary": ..., "entities": [...], ...}
+        """
+        meta = parsed.get("metadata", {})
+        thought = str(parsed.get("thought", ""))
+
+        # Map confidence string to float
+        confidence_raw = meta.get("confidence", "medium")
+        if isinstance(confidence_raw, str):
+            confidence_map = {"high": 0.9, "medium": 0.6, "low": 0.3}
+            confidence = confidence_map.get(confidence_raw.lower(), 0.5)
+        else:
+            try:
+                confidence = float(confidence_raw)
+            except (TypeError, ValueError):
+                confidence = 0.5
+
+        # Build entities from people, organizations, projects, topics
+        entities: list[dict] = []
+        for person in meta.get("people", []):
+            entities.append({"name": str(person), "type": "person"})
+        for org in meta.get("organizations", []):
+            entities.append({"name": str(org), "type": "organization"})
+        for proj in meta.get("projects", []):
+            entities.append({"name": str(proj), "type": "project"})
+        for topic in meta.get("topics", []):
+            entities.append({"name": str(topic), "type": "concept"})
+
+        # Infer project from metadata projects list
+        projects = meta.get("projects", [])
+        project = str(projects[0]) if projects else None
+
+        # Use tags as keywords
+        keywords = [str(t) for t in meta.get("tags", []) if t]
+        if not keywords:
+            keywords = [str(t) for t in meta.get("topics", []) if t]
+
+        return {
+            "type": parsed.get("type", "note"),
+            "title": thought[:100] if thought else "",
+            "summary": thought,
+            "para_category": parsed.get("para_category", "resource"),
+            "confidence": confidence,
+            "entities": entities,
+            "project": project,
+            "action_items": meta.get("action_items", []),
+            "keywords": keywords,
+        }
+
+    @staticmethod
     def _fallback_extraction(text: str) -> dict:
         """Minimal fallback when classification fails entirely."""
         return {
@@ -186,6 +307,30 @@ class HuggingFaceProvider:
             "action_items": [],
             "keywords": [],
         }
+
+    async def generate_text(self, prompt: str) -> str:
+        """Generate free-form text from a prompt via chat completion.
+
+        Used for summarization, strategic simulation, and other generative tasks.
+        Returns the raw text response from the LLM.
+        Raises ProviderError on total failure after retries.
+        """
+        url = self.CHAT_URL
+        payload = {
+            "model": self.classification_model,
+            "messages": [{"role": "user", "content": prompt[:4000]}],
+            "max_tokens": 1000,
+        }
+
+        response_text = await self._post_with_retry(url, payload)
+
+        try:
+            result = json.loads(response_text)
+            if isinstance(result, dict) and "choices" in result:
+                return result["choices"][0]["message"]["content"]
+            return response_text
+        except (json.JSONDecodeError, KeyError, IndexError):
+            return response_text
 
     async def embed(self, text: str) -> list[float]:
         """Generate embedding vector via HF Inference API.
@@ -262,8 +407,8 @@ class HuggingFaceProvider:
             details={"url": url, "error": str(last_error)},
         )
 
-    def _extract_json(self, text: str) -> dict:
-        """Extract JSON object from response text."""
+    def _extract_json(self, text: str) -> dict | list:
+        """Extract JSON object or array from response text."""
         # Try direct parse first
         try:
             result = json.loads(text)
@@ -271,10 +416,14 @@ class HuggingFaceProvider:
             if isinstance(result, dict) and "choices" in result:
                 content = result["choices"][0]["message"]["content"]
                 return self._parse_json_content(content)
-            # HF text-generation returns list of dicts
+            # HF text-generation returns list of dicts with generated_text
             if isinstance(result, list) and len(result) > 0:
-                generated = result[0].get("generated_text", text)
-                return json.loads(generated)
+                first = result[0]
+                if isinstance(first, dict) and "generated_text" in first:
+                    generated = first.get("generated_text", text)
+                    return json.loads(generated)
+                # Could be an array of thought objects from meta format
+                return result
             if isinstance(result, dict):
                 return result
         except (json.JSONDecodeError, KeyError, IndexError):
@@ -283,17 +432,25 @@ class HuggingFaceProvider:
         # Try to find JSON in the text
         return self._parse_json_content(text)
 
-    def _parse_json_content(self, text: str) -> dict:
+    def _parse_json_content(self, text: str) -> dict | list:
         """Parse JSON from a content string, with regex fallback."""
         # Try direct parse
         try:
             result = json.loads(text)
-            if isinstance(result, dict):
+            if isinstance(result, (dict, list)):
                 return result
         except json.JSONDecodeError:
             pass
 
-        # Try to find JSON in the text
+        # Try to find a JSON array first
+        array_match = re.search(r"\[\s*\{.+\}\s*\]", text, re.DOTALL)
+        if array_match:
+            try:
+                return json.loads(array_match.group())
+            except json.JSONDecodeError:
+                pass
+
+        # Try to find a JSON object
         json_match = re.search(r"\{[^{}]+\}", text)
         if json_match:
             return json.loads(json_match.group())

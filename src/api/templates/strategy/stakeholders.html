@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block page_title %} — Stakeholders{% endblock %}
+{% block nav_strategy %}active{% endblock %}
+
+{% block content %}
+<div class="strategy-stakeholders">
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <div style="font-size: 0.8rem; margin-bottom: 0.25rem;">
+                <a href="/strategy" style="color: var(--text-secondary); text-decoration: none;">♟️ Strategy</a>
+                <span style="color: var(--text-secondary);"> / </span>
+                <span>Stakeholders</span>
+            </div>
+            <h1 style="margin: 0;">👥 Stakeholder Landscape</h1>
+        </div>
+    </div>
+
+    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <!-- Stakeholder List -->
+        <div id="stakeholder-list">
+            {% for stakeholder in stakeholders %}
+                {% include "strategy/partials/stakeholder_card.html" %}
+            {% else %}
+                <div class="card" style="padding: 2rem; text-align: center;">
+                    <p class="text-muted">No stakeholders tracked yet. Add one using the form.</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Create Stakeholder Form -->
+        <div class="card" style="padding: 1.25rem; position: sticky; top: 1rem; align-self: start;">
+            <h3 style="margin: 0 0 1rem;">➕ Add Stakeholder</h3>
+            <form hx-post="/strategy/stakeholders"
+                  hx-target="#stakeholder-list"
+                  hx-swap="afterbegin">
+
+                <input type="text" name="name" placeholder="Name" required
+                       style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+
+                <input type="text" name="role" placeholder="Role / Title"
+                       style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <div>
+                        <label style="font-size: 0.75rem; display: block;">Influence (0-10)</label>
+                        <input type="number" name="influence_level" value="5" min="0" max="10"
+                               style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; display: block;">Trust (0-10)</label>
+                        <input type="number" name="trust_score" value="5" min="0" max="10"
+                               style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; display: block;">Alignment (-5 to +5)</label>
+                        <input type="number" name="alignment_score" value="0" min="-5" max="5"
+                               style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size: 0.75rem; display: block;">Dependency (0-10)</label>
+                        <input type="number" name="dependency_on_you" value="0" min="0" max="10"
+                               style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                </div>
+
+                <textarea name="incentives" placeholder="Their incentives / motivations" rows="2"
+                          style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+
+                <textarea name="notes" placeholder="Notes" rows="2"
+                          style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+
+                <button type="submit" class="btn btn-primary" style="width:100%;">Add Stakeholder</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block nav_reports %}active{% endblock %}
+{% block page_heading %}📋 Weekly Report{% endblock %}
+
+{% block header_actions %}
+<div style="display:flex; gap:8px; align-items:center;">
+    {% if weeks_ago > 0 %}
+    <a href="/reports/weekly?weeks_ago={{ weeks_ago - 1 }}" class="btn btn-sm" style="text-decoration:none;">← Newer</a>
+    {% endif %}
+    <span style="font-size:0.82rem; color:var(--text-muted);">
+        {{ week_start.strftime('%b %d') }} – {{ week_end.strftime('%b %d, %Y') }}
+    </span>
+    <a href="/reports/weekly?weeks_ago={{ weeks_ago + 1 }}" class="btn btn-sm" style="text-decoration:none;">Older →</a>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{# ── Week Summary Banner ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="report-header">
+        <div>
+            <h2 class="report-title">Week of {{ week_start.strftime('%B %d') }}</h2>
+            <span class="report-subtitle">{{ week_start.strftime('%b %d') }} – {{ week_end.strftime('%b %d, %Y') }}</span>
+        </div>
+        <div class="report-kpis">
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--accent);">{{ total_entries }}</span>
+                <span class="report-kpi-label">Captured</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--red);">{{ week_risks|length }}</span>
+                <span class="report-kpi-label">Risks</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--purple);">{{ week_decisions|length }}</span>
+                <span class="report-kpi-label">Decisions</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--green);">{{ week_tasks|length }}</span>
+                <span class="report-kpi-label">Tasks</span>
+            </div>
+        </div>
+    </div>
+
+    {# Type breakdown bar #}
+    {% if week_types %}
+    <div class="report-type-bar">
+        {% set total_wt = week_types.values()|sum %}
+        {% for type_key, count in week_types.items()|sort(attribute='1', reverse=True) %}
+            {% set display = type_display.get(type_key) %}
+            {% if display %}
+            <div class="report-type-segment" style="flex:{{ count }}; background:var(--{{ display.color }});"
+                 title="{{ display.label }}: {{ count }}"></div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:6px;">
+        {% for type_key, count in week_types.items()|sort(attribute='1', reverse=True) %}
+            {% set display = type_display.get(type_key) %}
+            {% if display %}
+            <span style="font-size:0.72rem; color:var(--text-muted);">
+                <span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:var(--{{ display.color }}); vertical-align:middle;"></span>
+                {{ display.emoji }} {{ display.label }}: {{ count }}
+            </span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{# ── Left Column: Day-by-day feed ── #}
+<div class="panel">
+    <h2 class="panel-title"><span>📅 Day by Day</span></h2>
+
+    {% if by_day %}
+        {% for day, day_entries in by_day.items() %}
+        <div class="report-day-group">
+            <div class="report-day-header">
+                <span class="report-day-name">{{ day }}</span>
+                <span class="report-day-count">{{ day_entries|length }} {% if day_entries|length == 1 %}entry{% else %}entries{% endif %}</span>
+            </div>
+            {% for entry in day_entries %}
+            <div class="report-entry-row">
+                {% set td = type_display.get(entry.type) %}
+                <span class="type-chip chip-{{ td.color if td else 'gray' }}" style="font-size:0.68rem; padding:1px 6px;">{{ td.emoji if td }} {{ td.label if td }}</span>
+                <a href="/entry/{{ entry.id }}" class="report-entry-title">{{ entry.title }}</a>
+                {% if entry.project %}
+                <span class="report-entry-project">📁 {{ entry.project }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>No entries captured this week.</p>
+            <p class="empty-sub">Try selecting a different week or capture more thoughts.</p>
+        </div>
+    {% endif %}
+</div>
+
+{# ── Right Column: Call-outs ── #}
+<div class="panel">
+
+    {# Top Entities #}
+    {% if top_entities %}
+    <h2 class="panel-title"><span>🏗️ Key Topics</span></h2>
+    <div class="report-entity-list">
+        {% for name, count in top_entities %}
+        <div class="report-entity-row">
+            <span class="report-entity-name">{{ name }}</span>
+            <span class="report-entity-mentions">{{ count }} mention{{ 's' if count != 1 else '' }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Risks #}
+    {% if week_risks %}
+    <h2 class="panel-title" style="margin-top:1.5rem; color:var(--red);"><span>⚠️ Risks Identified</span></h2>
+    {% for entry in week_risks %}
+    <div class="report-callout report-callout-red">
+        <a href="/entry/{{ entry.id }}" class="report-callout-title">{{ entry.title }}</a>
+        <div class="report-callout-summary">{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# Decisions #}
+    {% if week_decisions %}
+    <h2 class="panel-title" style="margin-top:1.5rem; color:var(--purple);"><span>⚖️ Decisions Made</span></h2>
+    {% for entry in week_decisions %}
+    <div class="report-callout report-callout-purple">
+        <a href="/entry/{{ entry.id }}" class="report-callout-title">{{ entry.title }}</a>
+        <div class="report-callout-summary">{{ entry.summary[:150] }}{% if entry.summary|length > 150 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# Tasks #}
+    {% if week_tasks %}
+    <h2 class="panel-title" style="margin-top:1.5rem; color:var(--green);"><span>✅ Tasks Surfaced</span></h2>
+    {% for entry in week_tasks %}
+    <div class="report-callout report-callout-green">
+        <a href="/entry/{{ entry.id }}" class="report-callout-title">{{ entry.title }}</a>
+        {% if entry.project %}<span class="report-entry-project">📁 {{ entry.project }}</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# 30-day Activity #}
+    {% if activity_30d %}
+    <h2 class="panel-title" style="margin-top:1.5rem;"><span>📈 30-Day Activity</span></h2>
+    <div class="report-sparkline">
+        {% set max_count = activity_30d|map(attribute='count')|max %}
+        {% for day_data in activity_30d %}
+            {% set bar_h = ((day_data.count / max_count) * 40)|round|int if max_count > 0 else 2 %}
+            <div class="report-spark-bar" style="height:{{ bar_h }}px;"
+                 title="{{ day_data.day }}: {{ day_data.count }}"></div>
+        {% endfor %}
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:var(--text-muted); margin-top:2px;">
+        <span>{{ activity_30d[0].day if activity_30d else '' }}</span>
+        <span>{{ activity_30d[-1].day if activity_30d else '' }}</span>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

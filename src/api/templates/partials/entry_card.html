@@ -1,7 +1,13 @@
 {% set display = type_display.get(entry.type) %}
 {% set para = entry.para_category.value if entry.para_category else 'resource' %}
 <div class="entry-card para-{{ para }}{% if entry.archived_at %} entry-archived{% endif %}"
-     id="entry-{{ entry.id }}">
+     id="entry-{{ entry.id }}"
+     hx-get="/entry/{{ entry.id }}/focus"
+     hx-target="#focus-panel"
+     hx-swap="innerHTML"
+     hx-push-url="false"
+     onclick="document.querySelectorAll('.entry-card').forEach(c => c.classList.remove('entry-selected')); this.classList.add('entry-selected');">
+
     <div class="entry-header">
         <div class="entry-header-left">
             <!-- Confidence dot -->
@@ -16,7 +22,7 @@
             {% endif %}
 
             {% if display %}
-                <span class="type-chip chip-{{ display.color }}">{{ display.emoji }} {{ display.label }}</span>
+                <span class="type-chip chip-{{ display.color }}">{{ display.label | upper }}</span>
             {% endif %}
 
             <!-- Novelty badge -->
@@ -25,100 +31,80 @@
             {% elif entry.novelty and entry.novelty.value == 'duplicate' %}
                 <span class="novelty-badge novelty-duplicate">♻ Dup</span>
             {% endif %}
-
-            <a href="/entry/{{ entry.id }}" class="entry-title" title="View details">{{ entry.title }}</a>
         </div>
-        <div class="entry-actions">
-            <!-- Reclassify dropdown -->
-            <select class="reclassify-select"
-                    hx-post="/entry/{{ entry.id }}/reclassify"
-                    hx-target="#entry-{{ entry.id }}"
-                    hx-swap="outerHTML"
-                    name="new_type"
-                    title="Reclassify">
-                <option value="" disabled selected>⇄</option>
-                {% for t in classifiable_types %}
-                    {% set td = type_display.get(t) %}
-                    <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
-                        {{ td.emoji }} {{ td.label }}
-                    </option>
-                {% endfor %}
-            </select>
-
-            <!-- Edit button -->
-            <button class="action-btn"
-                    hx-get="/entry/{{ entry.id }}/edit"
-                    hx-target="#entry-{{ entry.id }}"
-                    hx-swap="outerHTML"
-                    title="Edit">✏️</button>
-
-            <!-- Archive / Unarchive -->
-            {% if entry.archived_at %}
-                <button class="action-btn"
-                        hx-post="/entry/{{ entry.id }}/unarchive"
-                        hx-target="#entry-{{ entry.id }}"
-                        hx-swap="outerHTML"
-                        title="Unarchive">♻️</button>
-                <button class="action-btn action-danger"
-                        hx-delete="/entry/{{ entry.id }}"
-                        hx-target="#entry-{{ entry.id }}"
-                        hx-swap="outerHTML"
-                        hx-confirm="Permanently delete this entry?"
-                        title="Delete permanently">🗑️</button>
-            {% else %}
-                <button class="action-btn"
-                        hx-post="/entry/{{ entry.id }}/archive"
-                        hx-target="#entry-{{ entry.id }}"
-                        hx-swap="outerHTML"
-                        title="Archive">📦</button>
-            {% endif %}
-
-            {% if entry.slack_permalink %}
-                <a href="{{ entry.slack_permalink }}" target="_blank" class="action-btn" title="Open in Slack">🔗</a>
-            {% endif %}
-        </div>
+        <div class="entry-timestamp">{{ relative_time(entry.created_at) }}</div>
     </div>
 
-    <div class="entry-summary">{{ entry.summary }}</div>
+    <div class="entry-title-row">
+        <a href="/entry/{{ entry.id }}" class="entry-title" title="View details"
+           onclick="event.stopPropagation();">{{ entry.title }}</a>
+    </div>
 
-    <!-- Entity pills + meta in one row -->
-    <div class="entry-footer">
-        {% if entry.extracted_entities %}
-        <div class="entity-pills">
-            {% for ent in entry.extracted_entities %}
-                <a href="/entities?q={{ ent }}" class="entity-pill" title="View entity">{{ ent }}</a>
+    <div class="entry-meta">
+        {% if entry.project %}
+            <span class="entry-meta-tag">#{{ entry.project }}</span>
+            <span class="meta-sep">·</span>
+        {% endif %}
+        <span>{{ entry.author_name }}</span>
+        {% if entry.reply_count and entry.reply_count > 0 %}
+            <span class="meta-sep">·</span>
+            <span>💬 {{ entry.reply_count }}</span>
+        {% endif %}
+        {% if entry.source == "manual" %}
+            <span class="meta-sep">·</span>
+            <span>✍️</span>
+        {% endif %}
+    </div>
+
+    <div class="entry-actions">
+        <!-- Reclassify dropdown -->
+        <select class="reclassify-select"
+                hx-post="/entry/{{ entry.id }}/reclassify"
+                hx-target="#entry-{{ entry.id }}"
+                hx-swap="outerHTML"
+                name="new_type"
+                title="Reclassify"
+                onclick="event.stopPropagation();">
+            <option value="" disabled selected>⇄</option>
+            {% for t in classifiable_types %}
+                {% set td = type_display.get(t) %}
+                <option value="{{ t.value }}" {% if t == entry.type %}disabled{% endif %}>
+                    {{ td.emoji }} {{ td.label }}
+                </option>
             {% endfor %}
-        </div>
+        </select>
+
+        {% if entry.archived_at %}
+            <button class="action-btn"
+                    hx-post="/entry/{{ entry.id }}/unarchive"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Unarchive"
+                    onclick="event.stopPropagation();">♻️</button>
+        {% else %}
+            <button class="action-btn"
+                    hx-post="/entry/{{ entry.id }}/archive"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Archive"
+                    onclick="event.stopPropagation();">📦</button>
         {% endif %}
 
-        <div class="entry-meta">
-            <span>{{ entry.author_name }}</span>
-            <span class="meta-sep">·</span>
-            <span>{{ relative_time(entry.created_at) }}</span>
-            {% if entry.para_category %}
-                {% set pd = para_display.get(entry.para_category) %}
-                {% if pd %}
-                    <span class="meta-sep">·</span>
-                    <span class="meta-para">{{ pd.emoji }} {{ pd.label }}</span>
-                {% endif %}
-            {% endif %}
-            {% if entry.project %}
-                <span class="meta-sep">·</span>
-                <span class="meta-project">📁 {{ entry.project }}</span>
-            {% endif %}
-            {% if entry.reply_count and entry.reply_count > 0 %}
-                <span class="meta-sep">·</span>
-                <span>💬 {{ entry.reply_count }}</span>
-            {% endif %}
-            {% if entry.source == "manual" %}
-                <span class="meta-sep">·</span>
-                <span>✍️</span>
-            {% endif %}
-            {% if entry.augments_entry_id %}
-                <span class="meta-sep">·</span>
-                <span>↗ <a href="/entry/{{ entry.augments_entry_id }}" class="meta-link">augments</a></span>
-            {% endif %}
-        </div>
+        {% if entry.pinned_at %}
+            <button class="action-btn pin-btn pinned"
+                    hx-post="/entry/{{ entry.id }}/unpin"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Unpin"
+                    onclick="event.stopPropagation();">📌</button>
+        {% else %}
+            <button class="action-btn pin-btn"
+                    hx-post="/entry/{{ entry.id }}/pin"
+                    hx-target="#entry-{{ entry.id }}"
+                    hx-swap="outerHTML"
+                    title="Pin"
+                    onclick="event.stopPropagation();">📌</button>
+        {% endif %}
     </div>
 
     <!-- Suggestions (lazy-loaded) -->

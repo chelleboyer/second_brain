@@ -1,63 +1,115 @@
 {% extends "base.html" %}
 
 {% block nav_dashboard %}active{% endblock %}
-{% block page_heading %}📊 Dashboard{% endblock %}
 
 {% block content %}
-<!-- Stats bar -->
-<div class="stats-bar">
-    <div class="stat-card">
-        <div class="stat-value" style="color: var(--accent);">{{ counts.active }}</div>
-        <div class="stat-label">Active entries</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value" style="color: var(--teal);">{{ counts.archived }}</div>
-        <div class="stat-label">Archived</div>
-    </div>
-    {% if digest %}
-        {% set today_count = digest.values() | sum %}
-        <div class="stat-card">
-            <div class="stat-value" style="color: var(--green);">{{ today_count }}</div>
-            <div class="stat-label">Captured today</div>
+<!-- ── KPI Summary Row ─────────────────────────────────────────── -->
+<div class="kpi-row">
+    <div class="kpi-card">
+        <div class="kpi-header">
+            <span class="kpi-icon">📋</span>
+            <span class="kpi-label">Today</span>
+            <span class="kpi-trend kpi-trend-down">—</span>
         </div>
-    {% endif %}
-    {% if all_entities %}
-    <div class="stat-card">
-        <div class="stat-value" style="color: var(--purple);">{{ all_entities|length }}</div>
-        <div class="stat-label">Entities tracked</div>
+        <div class="kpi-body">
+            <span class="kpi-value">{{ counts.active }}</span>
+            <span class="kpi-sub">Entries to review</span>
+        </div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width: {% if counts.total > 0 %}{{ (counts.active / counts.total * 100)|int }}{% else %}0{% endif %}%; background: var(--accent);"></div></div>
     </div>
-    {% endif %}
+
+    <a href="/?type=strategy" class="kpi-card kpi-card-link">
+        <div class="kpi-header">
+            <span class="kpi-icon">🎯</span>
+            <span class="kpi-label">Goals</span>
+        </div>
+        <div class="kpi-body">
+            {% set idea_count = type_breakdown.get('idea', 0) %}
+            {% set strategy_count = type_breakdown.get('strategy', 0) %}
+            <span class="kpi-value">{{ idea_count + strategy_count }}</span>
+            <span class="kpi-sub">active</span>
+        </div>
+    </a>
+
+    <a href="/?type=task" class="kpi-card kpi-card-link">
+        <div class="kpi-header">
+            <span class="kpi-icon">☑️</span>
+            <span class="kpi-label">Tasks</span>
+        </div>
+        <div class="kpi-body">
+            {% set task_count = type_breakdown.get('task', 0) %}
+            <span class="kpi-value">{{ task_count }}</span>
+            <span class="kpi-sub">active</span>
+        </div>
+    </a>
+
+    <div class="kpi-card" x-show="!simpleMode" x-cloak>
+        <div class="kpi-header">
+            <span class="kpi-icon">🔥</span>
+            <span class="kpi-label">Streak</span>
+        </div>
+        <div class="kpi-body">
+            {% if activity %}
+            <span class="kpi-value">{{ activity|length }}</span>
+            <span class="kpi-sub">active days</span>
+            {% else %}
+            <span class="kpi-value">0</span>
+            <span class="kpi-sub">days</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="kpi-card kpi-card-focus">
+        <div class="kpi-header">
+            <span class="kpi-icon">🧠</span>
+            <span class="kpi-label">Focus</span>
+        </div>
+        <div class="kpi-body">
+            <label class="focus-toggle" x-data="{ focusOn: localStorage.getItem('sb-focus') !== 'off' }">
+                <span class="focus-label" x-text="focusOn ? 'ON' : 'OFF'"></span>
+                <button class="focus-switch" :class="{ 'active': focusOn }"
+                        @click="focusOn = !focusOn; localStorage.setItem('sb-focus', focusOn ? 'on' : 'off')">
+                    <span class="focus-knob"></span>
+                </button>
+            </label>
+        </div>
+    </div>
 </div>
 
-<div class="panel-grid">
-    <!-- Left column: Capture feed -->
-    <div class="panel">
-        <h2 class="panel-title">
-            <span>📥 Capture Feed</span>
-            {% if counts %}
-                <span class="count-badge">{{ counts.active }} active{% if counts.archived %} · {{ counts.archived }} archived{% endif %}</span>
-            {% endif %}
-        </h2>
+<!-- ── Three Column Layout ─────────────────────────────────────── -->
+<div class="dashboard-grid">
+    <!-- ── Center Column: Inbox / Priority Queue ───────────────── -->
+    <div class="inbox-column">
+        <div class="inbox-header">
+            <h2 class="inbox-title">Inbox</h2>
+            <div class="inbox-tabs">
+                <a href="/?show_archived={{ show_archived }}"
+                   class="inbox-tab {% if not active_type and not show_archived %}active{% endif %}">
+                    New <span class="tab-count">{{ counts.active }}</span>
+                </a>
+                {% set unclassified_count = type_breakdown.get('unclassified', 0) %}
+                <a href="/?type=unclassified"
+                   class="inbox-tab {% if active_type == 'unclassified' %}active{% endif %}">
+                    Unclassified <span class="tab-count">{{ unclassified_count }}</span>
+                </a>
+                {% if show_archived %}
+                    <a href="/" class="inbox-tab">Hide Archive</a>
+                {% endif %}
+            </div>
+            <div class="inbox-view-controls">
+                <button class="view-btn active" title="List view">☰</button>
+                <button class="view-btn" title="Compact view">⊞</button>
+            </div>
+        </div>
 
-        <!-- Manual capture form — textarea for real thoughts -->
-        <form class="capture-form" hx-post="/capture" hx-target="#feed-entries" hx-swap="afterbegin"
-              x-data="{ text: '', rows: 1 }"
+        <!-- Inline capture (compact) -->
+        <form class="inline-capture" hx-post="/capture" hx-target="#feed-entries" hx-swap="afterbegin"
+              x-data="{ text: '' }"
               @keydown.ctrl.enter="$el.requestSubmit()"
               @keydown.meta.enter="$el.requestSubmit()">
-            <div class="capture-input-wrap">
-                <textarea name="text" class="capture-textarea" placeholder="What's on your mind? (Ctrl+Enter to submit)"
-                          required rows="2"
-                          x-model="text"
-                          @input="rows = Math.min(6, text.split('\n').length + 1); $el.style.height = 'auto'; $el.style.height = $el.scrollHeight + 'px'"></textarea>
-                <div class="capture-actions">
-                    <span class="capture-hint" x-show="text.length > 0" x-cloak>
-                        <span x-text="text.length"></span> chars
-                    </span>
-                    <button type="submit" class="capture-btn">
-                        <span class="capture-btn-icon">⚡</span> Capture
-                    </button>
-                </div>
-            </div>
+            <input type="text" name="text" class="inline-capture-input"
+                   placeholder="Quick capture... (Ctrl+Enter)" required x-model="text">
+            <button type="submit" class="inline-capture-btn" x-show="text.length > 0" x-cloak>⚡</button>
         </form>
 
         <!-- Type filter tabs -->
@@ -72,15 +124,10 @@
                    title="{{ td.label }}">{{ td.emoji }} {{ td.label }}</a>
                 {% endif %}
             {% endfor %}
-            <span class="filter-separator">|</span>
-            {% if show_archived %}
-                <a href="/?type={{ active_type }}" class="filter-tab active">📦 Archived</a>
-            {% else %}
-                <a href="/?type={{ active_type }}&show_archived=true" class="filter-tab">📦 Archive</a>
-            {% endif %}
         </div>
 
-        <div id="feed-entries">
+        <!-- Entry Feed -->
+        <div id="feed-entries" class="entry-feed">
             {% for entry in entries %}
                 {% include "partials/entry_card.html" %}
             {% endfor %}
@@ -95,127 +142,91 @@
                     {% else %}
                         <div class="empty-icon">🧠</div>
                         <p>Your second brain is empty.</p>
-                        <p class="empty-sub">Capture your first thought above or click <strong>Refresh</strong> to pull from Slack.</p>
+                        <p class="empty-sub">Capture your first thought above or click <strong>🔔</strong> to pull from Slack.</p>
                     {% endif %}
                 </div>
             {% endif %}
         </div>
+
+        <!-- ── Bottom Panels: Projects & Milestones ───────────── -->
+        <div class="bottom-panels">
+            {% if project_breakdown %}
+            <div class="bottom-panel">
+                <div class="bottom-panel-header">
+                    <h3><span>📁</span> Projects</h3>
+                    <a href="/reports/projects" class="bottom-panel-action">View All</a>
+                </div>
+                <div class="project-list">
+                    {% for proj in project_breakdown[:3] %}
+                    <a href="/reports/project/{{ proj.project }}" class="project-row">
+                        <span class="project-name">{{ proj.project }}</span>
+                        <div class="project-bar-wrap">
+                            <div class="project-bar" style="width: {{ (proj.total / (project_breakdown[0].total if project_breakdown else 1)) * 100 }}%;"></div>
+                        </div>
+                        <span class="project-count">{{ proj.total }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Right column: Intelligence Panel -->
-    <div class="panel">
-        <h2 class="panel-title"><span>🔍 Intelligence</span></h2>
-
-        <!-- Search -->
-        <div class="search-container">
-            <span class="search-icon">🔍</span>
-            <input type="text"
-                   class="search-box"
-                   name="q"
-                   placeholder="Search your brain..."
-                   hx-get="/search"
-                   hx-trigger="keyup changed delay:300ms"
-                   hx-target="#search-results"
-                   hx-include="[name='search-type'], [name='search-entity']">
-        </div>
-
-        <!-- Search filters -->
-        <div class="search-filters">
-            <select name="search-type" class="select">
-                <option value="">All types</option>
-                {% for t in entry_types %}
-                    {% set td = type_display.get(t) %}
-                    <option value="{{ t.value }}">{{ td.emoji }} {{ td.label }}</option>
-                {% endfor %}
-            </select>
-            <select name="search-entity" class="select">
-                <option value="">All entities</option>
-                {% for ent in all_entities %}
-                    {% set ed = entity_display.get(ent.entity_type) %}
-                    <option value="{{ ent.name }}">{{ ed.emoji if ed }} {{ ent.name }} ({{ ent.entry_count }})</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div id="search-results"></div>
-
-        <!-- Recall -->
-        <div class="recall-section">
-            <h3 class="section-label">💡 Ask Your Knowledge</h3>
-            <div class="search-container">
-                <span class="search-icon">💡</span>
-                <input type="text"
-                       class="search-box"
-                       name="recall-q"
-                       placeholder="Ask a question about your captured knowledge..."
-                       hx-get="/recall"
-                       hx-trigger="keyup changed delay:500ms"
-                       hx-target="#recall-results"
-                       hx-params="*"
-                       hx-vals='{"q": this.value}'>
+    <!-- ── Right Column: Focus Panel ───────────────────────────── -->
+    <div class="focus-column" id="focus-panel">
+        {% if entries and entries|length > 0 %}
+            {% set focus_entry = entries[0] %}
+            {% include "partials/focus_panel.html" %}
+        {% else %}
+            <div class="focus-empty">
+                <div class="empty-icon">🎯</div>
+                <p>Select an entry to focus</p>
             </div>
-            <div id="recall-results"></div>
-        </div>
-
-        <!-- Digest counter -->
-        {% if digest %}
-        <div class="digest-section">
-            <h3 class="section-label">📊 Today's Digest</h3>
-            <div class="digest">
-                {% for type_key, count in digest.items() %}
-                    {% set display = type_display.get(type_key) %}
-                    {% if display %}
-                        <span class="digest-item chip-{{ display.color }}">
-                            {{ display.emoji }} {{ display.label }}: {{ count }}
-                        </span>
-                    {% else %}
-                        <span class="digest-item">{{ type_key }}: {{ count }}</span>
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
         {% endif %}
 
-        <!-- Quick links -->
-        <div class="quick-nav">
-            <h3 class="section-label">⚡ Quick Access</h3>
-            <div class="tools-grid">
-                <a href="/entities" class="tool-link">
-                    <span class="tool-icon">🏗️</span>
-                    <div>
-                        <div class="tool-name">Entities</div>
-                        <div class="tool-desc">{{ all_entities|length if all_entities else 0 }} tracked</div>
-                    </div>
+        <!-- ── Saved Searches ──────────────────────────────────── -->
+        <div class="saved-searches-panel">
+            <h3 class="panel-section-title">Saved Searches</h3>
+            <div class="saved-search-list">
+                <a href="/?type=decision" class="saved-search-item">
+                    <span class="saved-search-icon">📋</span>
+                    <span>Recent Decisions</span>
                 </a>
-                <a href="/graph" class="tool-link">
-                    <span class="tool-icon">🔗</span>
-                    <div>
-                        <div class="tool-name">Knowledge Graph</div>
-                        <div class="tool-desc">Visualize connections</div>
-                    </div>
+                <a href="/?type=idea" class="saved-search-item">
+                    <span class="saved-search-icon">🏷️</span>
+                    <span>All Ideas</span>
                 </a>
-                <a href="/insights" class="tool-link">
-                    <span class="tool-icon">📈</span>
-                    <div>
-                        <div class="tool-name">Insights</div>
-                        <div class="tool-desc">Brain health</div>
-                    </div>
+                <a href="/?type=note" class="saved-search-item">
+                    <span class="saved-search-icon">🔍</span>
+                    <span>Client Notes</span>
                 </a>
-                <a href="/eval" class="tool-link">
-                    <span class="tool-icon">🧪</span>
-                    <div>
-                        <div class="tool-name">Eval Harness</div>
-                        <div class="tool-desc">Model benchmarks</div>
-                    </div>
+                <a href="/?type=task" class="saved-search-item">
+                    <span class="saved-search-icon">📋</span>
+                    <span>All Tasks</span>
                 </a>
             </div>
         </div>
 
-        <!-- Unclassified alert (lazy-loaded) -->
-        <div hx-get="/insights/unclassified-count"
-             hx-trigger="load"
-             hx-swap="outerHTML"
-             style="margin-top: 12px;"></div>
+        <!-- ── Habits War (gamification, optional) ─────────────── -->
+        <div class="habits-war-panel" x-show="!simpleMode" x-cloak>
+            <h3 class="panel-section-title">Habits War</h3>
+            <div class="habits-war-content">
+                <div class="habits-level">
+                    <div class="habits-level-icon">🏆</div>
+                    <div class="habits-level-info">
+                        <span class="habits-level-num">Level {{ (counts.total // 10) + 1 }}</span>
+                        <span class="habits-xp">{{ counts.total * 50 }} XP</span>
+                    </div>
+                </div>
+                {% if activity %}
+                <div class="habits-sparkline">
+                    {% for day in activity %}
+                    <div class="spark-bar" style="height: {{ [day.count * 12, 4]|max }}px;" title="{{ day.day }}: {{ day.count }}"></div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

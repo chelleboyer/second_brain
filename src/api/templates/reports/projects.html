@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block nav_reports %}active{% endblock %}
+{% block page_heading %}📁 Project Report{% endblock %}
+
+{% block content %}
+
+{# ── Summary Banner ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="report-header">
+        <div>
+            <h2 class="report-title">Project Overview</h2>
+            <span class="report-subtitle">{{ project_breakdown|length }} active project{{ 's' if project_breakdown|length != 1 else '' }} · {{ counts.active }} total entries</span>
+        </div>
+        <div class="report-kpis">
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--accent);">{{ project_breakdown|length }}</span>
+                <span class="report-kpi-label">Projects</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--text-muted);">{{ unassigned_count }}</span>
+                <span class="report-kpi-label">Unassigned</span>
+            </div>
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--green);">{{ counts.active }}</span>
+                <span class="report-kpi-label">Active</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Project Cards ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    {% if project_breakdown %}
+    <div class="report-project-grid">
+        {% for proj in project_breakdown %}
+        <a href="/reports/project/{{ proj.project|urlencode }}" class="report-project-card">
+            <div class="report-project-header">
+                <span class="report-project-name">📁 {{ proj.project }}</span>
+                <span class="report-project-total">{{ proj.total }}</span>
+            </div>
+            <div class="report-project-types">
+                {% for type_key, count in proj.types.items()|sort(attribute='1', reverse=True) %}
+                    {% set display = type_display.get(type_key) %}
+                    {% if display %}
+                    <span class="report-project-type-chip" style="border-color:var(--{{ display.color }});">
+                        {{ display.emoji }} {{ count }}
+                    </span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {# Mini distribution bar #}
+            <div class="report-type-bar" style="height:4px; margin-top:8px;">
+                {% for type_key, count in proj.types.items()|sort(attribute='1', reverse=True) %}
+                    {% set display = type_display.get(type_key) %}
+                    {% if display %}
+                    <div class="report-type-segment" style="flex:{{ count }}; background:var(--{{ display.color }});"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📁</div>
+        <p>No projects found.</p>
+        <p class="empty-sub">Entries are assigned to projects during classification. Capture more thoughts to see project groupings.</p>
+    </div>
+    {% endif %}
+</div>
+
+{# ── Unassigned Entries ── #}
+{% if unassigned_count > 0 %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <h2 class="panel-title">
+        <span>❓ Unassigned Entries</span>
+        <span class="count-badge">{{ unassigned_count }}</span>
+    </h2>
+    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
+        These entries have no project association. Consider editing them to assign a project.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% for type_key, count in unassigned_types.items()|sort(attribute='1', reverse=True) %}
+            {% set display = type_display.get(type_key) %}
+            {% if display %}
+            <a href="/?type={{ type_key }}" class="report-project-type-chip" style="border-color:var(--{{ display.color }}); text-decoration:none;">
+                {{ display.emoji }} {{ display.label }}: {{ count }}
+            </a>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block nav_reports %}active{% endblock %}
+{% block page_heading %}📁 {{ project_name }}{% endblock %}
+
+{% block header_actions %}
+<a href="/reports/projects" class="btn btn-sm" style="text-decoration:none;">← All Projects</a>
+{% endblock %}
+
+{% block content %}
+
+{# ── Project Banner ── #}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="report-header">
+        <div>
+            <h2 class="report-title">{{ project_name }}</h2>
+            <span class="report-subtitle">{{ total }} active entries</span>
+        </div>
+        <div class="report-kpis">
+            <div class="report-kpi">
+                <span class="report-kpi-value" style="color:var(--accent);">{{ total }}</span>
+                <span class="report-kpi-label">Entries</span>
+            </div>
+            {% for para_key, para_count in para_counts.items()|sort(attribute='1', reverse=True) %}
+                {% set pd = para_display.get(para_key) %}
+                {% if pd %}
+                <div class="report-kpi">
+                    <span class="report-kpi-value" style="color:var(--{{ pd.color }});">{{ para_count }}</span>
+                    <span class="report-kpi-label">{{ pd.emoji }} {{ pd.label }}</span>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{# ── Entries by type ── #}
+{% for type_key, type_entries in by_type.items()|sort(attribute='1', reverse=True) %}
+    {% set display = type_display.get(type_key) %}
+    {% if display %}
+    <div class="panel" {% if loop.index <= 2 %}style="grid-column: 1 / -1;"{% endif %}>
+        <h2 class="panel-title">
+            <span>{{ display.emoji }} {{ display.label }}</span>
+            <span class="count-badge">{{ type_entries|length }}</span>
+        </h2>
+        {% for entry in type_entries %}
+        <div class="report-callout" style="border-left-color:var(--{{ display.color }});">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                <a href="/entry/{{ entry.id }}" class="report-callout-title">{{ entry.title }}</a>
+                <span style="font-size:0.72rem; color:var(--text-muted); flex-shrink:0;">{{ relative_time(entry.created_at) }}</span>
+            </div>
+            <div class="report-callout-summary">{{ entry.summary[:200] }}{% if entry.summary|length > 200 %}…{% endif %}</div>
+            {% if entry.extracted_entities %}
+            <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px;">
+                {% for ent in entry.extracted_entities[:5] %}
+                <span class="entity-pill">{{ ent }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endfor %}
+
+{% if not by_type %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="empty-state">
+        <div class="empty-icon">📁</div>
+        <p>No entries in this project.</p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

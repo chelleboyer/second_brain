@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block page_title %} — Strategic Assets{% endblock %}
+{% block nav_strategy %}active{% endblock %}
+
+{% block content %}
+<div class="strategy-assets">
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div>
+            <div style="font-size: 0.8rem; margin-bottom: 0.25rem;">
+                <a href="/strategy" style="color: var(--text-secondary); text-decoration: none;">♟️ Strategy</a>
+                <span style="color: var(--text-secondary);"> / </span>
+                <span>Assets</span>
+            </div>
+            <h1 style="margin: 0;">🏆 Strategic Assets</h1>
+        </div>
+    </div>
+
+    <!-- Type Tabs -->
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+        <a href="/strategy/assets"
+           class="btn {% if not active_type %}btn-primary{% else %}btn-secondary{% endif %}"
+           style="font-size: 0.8rem;">All</a>
+        <a href="/strategy/assets?asset_type=reputation"
+           class="btn {% if active_type == 'reputation' %}btn-primary{% else %}btn-secondary{% endif %}"
+           style="font-size: 0.8rem;">🏆 Reputation</a>
+        <a href="/strategy/assets?asset_type=optionality"
+           class="btn {% if active_type == 'optionality' %}btn-primary{% else %}btn-secondary{% endif %}"
+           style="font-size: 0.8rem;">🚪 Optionality</a>
+    </div>
+
+    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <!-- Asset List -->
+        <div id="asset-list">
+            {% for asset in assets %}
+                {% include "strategy/partials/asset_card.html" %}
+            {% else %}
+                <div class="card" style="padding: 2rem; text-align: center;">
+                    <p class="text-muted">No strategic assets tracked. Add one using the form.</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Create Asset Form -->
+        <div class="card" style="padding: 1.25rem; position: sticky; top: 1rem; align-self: start;">
+            <h3 style="margin: 0 0 1rem;">➕ Track New Asset</h3>
+            <form hx-post="/strategy/assets"
+                  hx-target="#asset-list"
+                  hx-swap="afterbegin"
+                  x-data="{ assetType: 'reputation' }">
+
+                <input type="text" name="title" placeholder="Asset title" required
+                       style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+
+                <textarea name="description" placeholder="Description" rows="2"
+                          style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">Type</label>
+                        <select name="asset_type" x-model="assetType"
+                                style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                            <option value="reputation">🏆 Reputation</option>
+                            <option value="optionality">🚪 Optionality</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">Visibility</label>
+                        <select name="visibility"
+                                style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                            {% for v in visibility_levels %}
+                            <option value="{{ v.value }}">{{ visibility_display[v].emoji }} {{ visibility_display[v].label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Reputation Scores -->
+                <div x-show="assetType === 'reputation'" style="margin-bottom: 0.75rem;">
+                    <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 0.4rem;">Reputation Scoring (0-10)</div>
+                    {% for field, label in [("reusability_score", "Reusability"), ("signaling_strength", "Signaling Strength"), ("market_relevance", "Market Relevance"), ("compounding_potential", "Compounding Potential")] %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                        <span style="font-size: 0.8rem;">{{ label }}</span>
+                        <input type="number" name="{{ field }}" value="0" min="0" max="10"
+                               style="width:55px;padding:0.3rem;text-align:center;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Optionality Scores -->
+                <div x-show="assetType === 'optionality'" style="margin-bottom: 0.75rem;">
+                    <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 0.4rem;">Optionality Scoring (0-10)</div>
+                    {% for field, label in [("portability_score", "Portability"), ("market_demand", "Market Demand"), ("monetization_potential", "Monetization Potential"), ("time_to_deploy", "Time to Deploy (lower=faster)")] %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                        <span style="font-size: 0.8rem;">{{ label }}</span>
+                        <input type="number" name="{{ field }}" value="0" min="0" max="10"
+                               style="width:55px;padding:0.3rem;text-align:center;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <textarea name="notes" placeholder="Notes" rows="2"
+                          style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+
+                <button type="submit" class="btn btn-primary" style="width:100%;">Track Asset</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

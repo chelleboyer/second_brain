@@ -13,11 +13,19 @@ from src.models.enums import (
     TYPE_DISPLAY,
     PARA_DISPLAY,
     ENTITY_DISPLAY,
+    VISIBILITY_DISPLAY,
+    INITIATIVE_CATEGORY_DISPLAY,
+    INITIATIVE_TYPE_DISPLAY,
+    ASSET_CATEGORY_DISPLAY,
     CLASSIFIABLE_TYPES,
     EntryType,
     EntityType,
     NoveltyVerdict,
     PARACategory,
+    VisibilityLevel,
+    InitiativeCategory,
+    InitiativeType,
+    AssetCategory,
 )
 
 log = structlog.get_logger(__name__)
@@ -55,10 +63,18 @@ def _shared_ctx(request: Request, **extra) -> dict:
         "type_display": TYPE_DISPLAY,
         "para_display": PARA_DISPLAY,
         "entity_display": ENTITY_DISPLAY,
+        "visibility_display": VISIBILITY_DISPLAY,
+        "initiative_category_display": INITIATIVE_CATEGORY_DISPLAY,
+        "initiative_type_display": INITIATIVE_TYPE_DISPLAY,
+        "asset_category_display": ASSET_CATEGORY_DISPLAY,
         "relative_time": _relative_time,
         "entry_types": list(EntryType),
         "entity_types": list(EntityType),
         "para_categories": list(PARACategory),
+        "visibility_levels": list(VisibilityLevel),
+        "initiative_categories": list(InitiativeCategory),
+        "initiative_types": list(InitiativeType),
+        "asset_categories": list(AssetCategory),
         "classifiable_types": CLASSIFIABLE_TYPES,
         **extra,
     }
@@ -71,9 +87,12 @@ async def dashboard(
     request: Request,
     type: str = Query(default=""),
     show_archived: bool = Query(default=False),
+    filter: str = Query(default=""),
 ) -> HTMLResponse:
     """Render the main dashboard with capture feed, filters, and digest."""
-    if type:
+    if filter == "pinned":
+        entries = await app_state.repository.get_pinned(limit=50)
+    elif type:
         try:
             entry_type = EntryType(type)
             entries = await app_state.repository.get_by_type(
@@ -92,6 +111,11 @@ async def dashboard(
     digest = await app_state.repository.get_digest(today)
     counts = await app_state.repository.count_all()
 
+    # KPI data for executive dashboard
+    type_breakdown = await app_state.repository.get_type_breakdown()
+    activity = await app_state.repository.get_activity_by_day(days=7)
+    project_breakdown = await app_state.repository.get_project_breakdown()
+
     # Populate entity list for search filter dropdown
     all_entities = await app_state.entity_repo.get_all_entities()
 
@@ -103,8 +127,12 @@ async def dashboard(
             digest=digest,
             counts=counts,
             active_type=type,
+            active_filter=filter,
             show_archived=show_archived,
             all_entities=all_entities,
+            type_breakdown=type_breakdown,
+            activity=activity,
+            project_breakdown=project_breakdown,
         ),
     )
 
@@ -124,6 +152,9 @@ async def refresh(request: Request) -> HTMLResponse:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     digest = await app_state.repository.get_digest(today)
     counts = await app_state.repository.count_all()
+    type_breakdown = await app_state.repository.get_type_breakdown()
+    activity = await app_state.repository.get_activity_by_day(days=7)
+    project_breakdown = await app_state.repository.get_project_breakdown()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -134,8 +165,41 @@ async def refresh(request: Request) -> HTMLResponse:
             counts=counts,
             active_type="",
             show_archived=False,
+            type_breakdown=type_breakdown,
+            activity=activity,
+            project_breakdown=project_breakdown,
         ),
     )
+
+
+# ── Focus Panel & Badge Endpoints ────────────────────────────────
+
+@router.get("/entry/{entry_id}/focus", response_class=HTMLResponse)
+async def entry_focus_panel(request: Request, entry_id: UUID) -> HTMLResponse:
+    """Render the focus panel partial for a selected entry."""
+    entry = await app_state.repository.get_by_id(entry_id)
+    if not entry:
+        return HTMLResponse(
+            '<div class="focus-empty"><p>Entry not found</p></div>'
+        )
+    return templates.TemplateResponse(
+        "partials/focus_panel.html",
+        _shared_ctx(request, focus_entry=entry),
+    )
+
+
+@router.get("/api/entry-count", response_class=HTMLResponse)
+async def entry_count_badge(request: Request) -> HTMLResponse:
+    """Return total entry count for the brand badge."""
+    counts = await app_state.repository.count_all()
+    return HTMLResponse(str(counts.get("total", 0)))
+
+
+@router.get("/api/inbox-count", response_class=HTMLResponse)
+async def inbox_count_badge(request: Request) -> HTMLResponse:
+    """Return active entry count for the sidebar inbox badge."""
+    counts = await app_state.repository.count_all()
+    return HTMLResponse(str(counts.get("active", 0)))
 
 
 # ── Search ───────────────────────────────────────────────────────
@@ -258,6 +322,32 @@ async def unarchive_entry(request: Request, entry_id: str) -> HTMLResponse:
     )
 
 
+# ── Pin / Unpin ──────────────────────────────────────────────────
+
+@router.post("/entry/{entry_id}/pin", response_class=HTMLResponse)
+async def pin_entry(request: Request, entry_id: str) -> HTMLResponse:
+    """Pin an entry for quick access."""
+    entry = await app_state.repository.pin(UUID(entry_id))
+    if not entry:
+        return HTMLResponse("<p>Entry not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "partials/entry_card.html",
+        _shared_ctx(request, entry=entry),
+    )
+
+
+@router.post("/entry/{entry_id}/unpin", response_class=HTMLResponse)
+async def unpin_entry(request: Request, entry_id: str) -> HTMLResponse:
+    """Unpin an entry."""
+    entry = await app_state.repository.unpin(UUID(entry_id))
+    if not entry:
+        return HTMLResponse("<p>Entry not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "partials/entry_card.html",
+        _shared_ctx(request, entry=entry),
+    )
+
+
 # ── Delete ───────────────────────────────────────────────────────
 
 @router.delete("/entry/{entry_id}", response_class=HTMLResponse)
@@ -332,7 +422,189 @@ async def update_entry(
     )
 
 
-# ── Insights & Reports ───────────────────────────────────────────
+# ── Reports ──────────────────────────────────────────────────────
+
+@router.get("/reports/weekly", response_class=HTMLResponse)
+async def weekly_report(
+    request: Request,
+    weeks_ago: int = Query(default=0, ge=0, le=12),
+) -> HTMLResponse:
+    """Weekly Digest Report: entries grouped by day and type for a given week."""
+    import asyncio as _asyncio
+    from collections import defaultdict
+
+    # Calculate date range for the selected week
+    today = datetime.now(timezone.utc).date()
+    from datetime import timedelta
+
+    week_start = today - timedelta(days=today.weekday()) - timedelta(weeks=weeks_ago)
+    week_end = week_start + timedelta(days=6)
+
+    entries, all_entities, activity_30d, type_breakdown, counts = await _asyncio.gather(
+        app_state.repository.get_entries_in_date_range(
+            week_start.isoformat(), week_end.isoformat()
+        ),
+        app_state.entity_repo.get_all_entities(),
+        app_state.repository.get_activity_by_day(30),
+        app_state.repository.get_type_breakdown(),
+        app_state.repository.count_all(),
+    )
+
+    # Group entries by day
+    by_day: dict[str, list] = defaultdict(list)
+    for entry in entries:
+        day_key = entry.created_at.strftime("%A, %b %d")
+        by_day[day_key].append(entry)
+
+    # Type counts for the week
+    week_types: dict[str, int] = defaultdict(int)
+    for entry in entries:
+        week_types[entry.type.value] += 1
+
+    # Extract entities mentioned this week
+    week_entity_names: dict[str, int] = defaultdict(int)
+    for entry in entries:
+        for ent_name in entry.extracted_entities:
+            week_entity_names[ent_name] += 1
+    top_entities = sorted(week_entity_names.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    # Filter specific types for call-outs
+    week_risks = [e for e in entries if e.type == EntryType.RISK]
+    week_decisions = [e for e in entries if e.type == EntryType.DECISION]
+    week_tasks = [e for e in entries if e.type == EntryType.TASK]
+
+    return templates.TemplateResponse(
+        "reports/weekly.html",
+        _shared_ctx(
+            request,
+            entries=entries,
+            by_day=dict(by_day),
+            week_types=dict(week_types),
+            top_entities=top_entities,
+            week_risks=week_risks,
+            week_decisions=week_decisions,
+            week_tasks=week_tasks,
+            activity_30d=activity_30d,
+            type_breakdown=type_breakdown,
+            counts=counts,
+            week_start=week_start,
+            week_end=week_end,
+            weeks_ago=weeks_ago,
+            total_entries=len(entries),
+        ),
+    )
+
+
+@router.get("/reports/projects", response_class=HTMLResponse)
+async def project_report(request: Request) -> HTMLResponse:
+    """Project Breakdown Report: entries grouped by project with type distribution."""
+    import asyncio as _asyncio
+
+    project_breakdown, counts, all_entities = await _asyncio.gather(
+        app_state.repository.get_project_breakdown(),
+        app_state.repository.count_all(),
+        app_state.entity_repo.get_all_entities(),
+    )
+
+    # Get entries with no project assigned
+    all_active = await app_state.repository.get_recent(limit=500)
+    unassigned = [e for e in all_active if not e.project]
+    unassigned_types: dict[str, int] = {}
+    from collections import defaultdict
+    _ut: dict[str, int] = defaultdict(int)
+    for e in unassigned:
+        _ut[e.type.value] += 1
+    unassigned_types = dict(_ut)
+
+    return templates.TemplateResponse(
+        "reports/projects.html",
+        _shared_ctx(
+            request,
+            project_breakdown=project_breakdown,
+            counts=counts,
+            all_entities=all_entities,
+            unassigned_count=len(unassigned),
+            unassigned_types=unassigned_types,
+        ),
+    )
+
+
+@router.get("/reports/project/{project_name}", response_class=HTMLResponse)
+async def project_detail_report(
+    request: Request,
+    project_name: str,
+) -> HTMLResponse:
+    """Detail view for a single project: all entries grouped by type."""
+    from collections import defaultdict
+    from urllib.parse import unquote
+
+    project_name = unquote(project_name)
+    all_active = await app_state.repository.get_recent(limit=500)
+    entries = [e for e in all_active if e.project == project_name]
+    entries.sort(key=lambda e: e.created_at, reverse=True)
+
+    by_type: dict[str, list] = defaultdict(list)
+    for entry in entries:
+        by_type[entry.type.value].append(entry)
+
+    # PARA breakdown for this project
+    para_counts: dict[str, int] = defaultdict(int)
+    for entry in entries:
+        para_counts[entry.para_category.value] += 1
+
+    return templates.TemplateResponse(
+        "reports/project_detail.html",
+        _shared_ctx(
+            request,
+            project_name=project_name,
+            entries=entries,
+            by_type=dict(by_type),
+            para_counts=dict(para_counts),
+            total=len(entries),
+        ),
+    )
+
+
+@router.get("/reports/trends", response_class=HTMLResponse)
+async def trends_report(request: Request) -> HTMLResponse:
+    """30-day trend analysis: activity patterns, type shifts, PARA distribution."""
+    import asyncio as _asyncio
+
+    activity_30d, type_breakdown, para_breakdown, counts = await _asyncio.gather(
+        app_state.repository.get_activity_by_day(30),
+        app_state.repository.get_type_breakdown(),
+        app_state.repository.get_para_breakdown(),
+        app_state.repository.count_all(),
+    )
+
+    # Get last 7d vs previous 7d for comparison
+    all_activity = await app_state.repository.get_activity_by_day(14)
+    recent_7 = sum(d["count"] for d in all_activity[-7:]) if len(all_activity) >= 7 else sum(d["count"] for d in all_activity)
+    prev_7 = sum(d["count"] for d in all_activity[:-7]) if len(all_activity) > 7 else 0
+    if prev_7 > 0:
+        velocity_change = round(((recent_7 - prev_7) / prev_7) * 100, 1)
+    else:
+        velocity_change = 100.0 if recent_7 > 0 else 0.0
+
+    all_entities = await app_state.entity_repo.get_all_entities()
+
+    return templates.TemplateResponse(
+        "reports/trends.html",
+        _shared_ctx(
+            request,
+            activity_30d=activity_30d,
+            type_breakdown=type_breakdown,
+            para_breakdown=para_breakdown,
+            counts=counts,
+            recent_7=recent_7,
+            prev_7=prev_7,
+            velocity_change=velocity_change,
+            all_entities=all_entities,
+        ),
+    )
+
+
+# ── Insights ─────────────────────────────────────────────────────
 
 @router.get("/insights", response_class=HTMLResponse)
 async def insights(request: Request) -> HTMLResponse:
@@ -984,3 +1256,406 @@ async def slack_commands(
     log.info("slack_command_received", command=command, text=text)
     result = await app_state.slack_commands.handle(text)
     return JSONResponse(result)
+
+
+# ── Phase II: Strategic Positioning ──────────────────────────────
+
+@router.get("/strategy", response_class=HTMLResponse)
+async def strategy_dashboard(request: Request) -> HTMLResponse:
+    """Render the strategic positioning dashboard."""
+    summary = await app_state.strategy_repo.get_strategy_summary()
+    initiatives = await app_state.strategy_repo.list_initiatives(status="active")
+    stakeholders = await app_state.strategy_repo.list_stakeholders()
+    assets = await app_state.strategy_repo.list_assets()
+    influence_deltas = await app_state.strategy_repo.list_influence_deltas(limit=8)
+    latest_sim = await app_state.strategy_repo.get_latest_simulation()
+    influence_trend = await app_state.influence_tracker.get_trend()
+
+    return templates.TemplateResponse(
+        "strategy/dashboard.html",
+        _shared_ctx(
+            request,
+            summary=summary,
+            initiatives=initiatives,
+            stakeholders=stakeholders,
+            assets=assets,
+            influence_deltas=influence_deltas,
+            latest_simulation=latest_sim,
+            influence_trend=influence_trend,
+            questions=app_state.evaluation_engine.get_questions(),
+        ),
+    )
+
+
+# ── Initiatives ──────────────────────────────────────────────────
+
+@router.get("/strategy/initiatives", response_class=HTMLResponse)
+async def initiatives_page(
+    request: Request,
+    status: str = Query(default="active"),
+    category: str = Query(default=""),
+) -> HTMLResponse:
+    """Render the initiatives browser."""
+    cat_filter = InitiativeCategory(category) if category else None
+    initiatives = await app_state.strategy_repo.list_initiatives(
+        status=status, category=cat_filter,
+    )
+    breakdown = await app_state.evaluation_engine.get_category_breakdown()
+    visibility_matrix = await app_state.evaluation_engine.get_visibility_matrix()
+
+    # Gather link counts for all initiatives
+    link_counts: dict[str, int] = {}
+    for init in initiatives:
+        link_counts[str(init.id)] = await app_state.strategy_repo.count_links_for_initiative(init.id)
+
+    return templates.TemplateResponse(
+        "strategy/initiatives.html",
+        _shared_ctx(
+            request,
+            initiatives=initiatives,
+            breakdown=breakdown,
+            visibility_matrix=visibility_matrix,
+            link_counts=link_counts,
+            active_status=status,
+            active_category=category,
+            questions=app_state.evaluation_engine.get_questions(),
+        ),
+    )
+
+
+@router.post("/strategy/initiatives", response_class=HTMLResponse)
+async def create_initiative(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    initiative_type: str = Form(default="scored"),
+    authority: int = Form(default=0),
+    asymmetric_info: int = Form(default=0),
+    future_mobility: int = Form(default=0),
+    reusable_leverage: int = Form(default=0),
+    right_visibility: int = Form(default=0),
+    visibility: str = Form(default="hidden"),
+    risk_level: int = Form(default=0),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Create and evaluate a new initiative."""
+    from src.models.strategy import InitiativeCreate
+
+    create = InitiativeCreate(
+        title=title,
+        description=description,
+        initiative_type=InitiativeType(initiative_type),
+        authority=authority,
+        asymmetric_info=asymmetric_info,
+        future_mobility=future_mobility,
+        reusable_leverage=reusable_leverage,
+        right_visibility=right_visibility,
+        visibility=VisibilityLevel(visibility),
+        risk_level=risk_level,
+        notes=notes,
+    )
+    initiative = await app_state.evaluation_engine.evaluate_initiative(create)
+    link_count = await app_state.strategy_repo.count_links_for_initiative(initiative.id)
+    log.info("initiative_created", id=str(initiative.id), category=initiative.category.value)
+
+    # Return the initiative card partial for HTMX swap
+    return templates.TemplateResponse(
+        "strategy/partials/initiative_card.html",
+        _shared_ctx(request, initiative=initiative, link_count=link_count),
+    )
+
+
+@router.get("/strategy/initiative/{initiative_id}", response_class=HTMLResponse)
+async def initiative_detail(request: Request, initiative_id: str) -> HTMLResponse:
+    """Render initiative detail page."""
+    initiative = await app_state.strategy_repo.get_initiative(UUID(initiative_id))
+    if initiative is None:
+        return HTMLResponse("<p>Initiative not found</p>", status_code=404)
+
+    links = await app_state.strategy_repo.get_links_for_initiative(UUID(initiative_id))
+
+    return templates.TemplateResponse(
+        "strategy/initiative_detail.html",
+        _shared_ctx(request, initiative=initiative, links=links),
+    )
+
+
+@router.delete("/strategy/initiative/{initiative_id}", response_class=HTMLResponse)
+async def delete_initiative(request: Request, initiative_id: str) -> HTMLResponse:
+    """Delete an initiative."""
+    await app_state.strategy_repo.delete_initiative(UUID(initiative_id))
+    return HTMLResponse("")
+
+
+# ── Initiative Links ─────────────────────────────────────────────
+
+@router.post("/strategy/initiative/{initiative_id}/links", response_class=HTMLResponse)
+async def add_initiative_link(
+    request: Request,
+    initiative_id: str,
+    linked_type: str = Form(...),
+    linked_id: str = Form(...),
+    link_note: str = Form(default=""),
+) -> HTMLResponse:
+    """Add a link from an initiative to an entry or entity."""
+    from src.models.strategy import InitiativeLink
+
+    # Resolve the title for the linked item
+    linked_title = ""
+    if linked_type == "entry":
+        entry = await app_state.repository.get_by_id(UUID(linked_id))
+        if entry:
+            linked_title = entry.title
+    elif linked_type == "entity":
+        entity = await app_state.entity_repo.get_entity_by_id(UUID(linked_id))
+        if entity:
+            linked_title = entity.name
+
+    link = InitiativeLink(
+        initiative_id=UUID(initiative_id),
+        linked_type=linked_type,
+        linked_id=linked_id,
+        linked_title=linked_title,
+        link_note=link_note,
+    )
+    await app_state.strategy_repo.save_initiative_link(link)
+
+    return templates.TemplateResponse(
+        "strategy/partials/link_item.html",
+        _shared_ctx(request, link=link, initiative_id=initiative_id),
+    )
+
+
+@router.delete("/strategy/link/{link_id}", response_class=HTMLResponse)
+async def delete_initiative_link(request: Request, link_id: str) -> HTMLResponse:
+    """Delete an initiative link."""
+    await app_state.strategy_repo.delete_initiative_link(UUID(link_id))
+    return HTMLResponse("")
+
+
+@router.get("/api/strategy/search-linkable", response_class=JSONResponse)
+async def search_linkable_items(
+    q: str = Query(default=""),
+) -> JSONResponse:
+    """Search brain entries and entities for linking to an initiative."""
+    if not q or len(q) < 2:
+        return JSONResponse([])
+
+    results: list[dict] = []
+
+    # Search entries
+    entries = await app_state.repository.search_keyword(q, limit=5)
+    for entry, score in entries:
+        results.append({
+            "id": str(entry.id),
+            "type": "entry",
+            "title": entry.title,
+            "subtitle": f"{TYPE_DISPLAY[entry.type]['emoji']} {entry.type.value}",
+        })
+
+    # Search entities
+    entities = await app_state.entity_repo.search_entities_by_name(q)
+    for entity in entities[:5]:
+        results.append({
+            "id": str(entity.id),
+            "type": "entity",
+            "title": entity.name,
+            "subtitle": f"{ENTITY_DISPLAY[entity.entity_type]['emoji']} {entity.entity_type.value}",
+        })
+
+    return JSONResponse(results)
+
+
+# ── Stakeholders ─────────────────────────────────────────────────
+
+@router.get("/strategy/stakeholders", response_class=HTMLResponse)
+async def stakeholders_page(request: Request) -> HTMLResponse:
+    """Render the stakeholder landscape page."""
+    stakeholders = await app_state.strategy_repo.list_stakeholders()
+    return templates.TemplateResponse(
+        "strategy/stakeholders.html",
+        _shared_ctx(request, stakeholders=stakeholders),
+    )
+
+
+@router.post("/strategy/stakeholders", response_class=HTMLResponse)
+async def create_stakeholder(
+    request: Request,
+    name: str = Form(...),
+    role: str = Form(default=""),
+    influence_level: int = Form(default=5),
+    incentives: str = Form(default=""),
+    alignment_score: int = Form(default=0),
+    dependency_on_you: int = Form(default=0),
+    trust_score: int = Form(default=5),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Create a new stakeholder."""
+    from src.models.strategy import Stakeholder
+
+    stakeholder = Stakeholder(
+        name=name,
+        role=role,
+        influence_level=influence_level,
+        incentives=incentives,
+        alignment_score=alignment_score,
+        dependency_on_you=dependency_on_you,
+        trust_score=trust_score,
+        notes=notes,
+    )
+    saved = await app_state.strategy_repo.save_stakeholder(stakeholder)
+
+    return templates.TemplateResponse(
+        "strategy/partials/stakeholder_card.html",
+        _shared_ctx(request, stakeholder=saved),
+    )
+
+
+@router.delete("/strategy/stakeholder/{stakeholder_id}", response_class=HTMLResponse)
+async def delete_stakeholder(request: Request, stakeholder_id: str) -> HTMLResponse:
+    """Delete a stakeholder."""
+    await app_state.strategy_repo.delete_stakeholder(UUID(stakeholder_id))
+    return HTMLResponse("")
+
+
+# ── Strategic Assets ─────────────────────────────────────────────
+
+@router.get("/strategy/assets", response_class=HTMLResponse)
+async def assets_page(
+    request: Request,
+    asset_type: str = Query(default=""),
+) -> HTMLResponse:
+    """Render the strategic assets page."""
+    type_filter = AssetCategory(asset_type) if asset_type else None
+    assets = await app_state.strategy_repo.list_assets(asset_type=type_filter)
+    return templates.TemplateResponse(
+        "strategy/assets.html",
+        _shared_ctx(request, assets=assets, active_type=asset_type),
+    )
+
+
+@router.post("/strategy/assets", response_class=HTMLResponse)
+async def create_asset(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    asset_type: str = Form(default="reputation"),
+    visibility: str = Form(default="hidden"),
+    reusability_score: int = Form(default=0),
+    signaling_strength: int = Form(default=0),
+    market_relevance: int = Form(default=0),
+    compounding_potential: int = Form(default=0),
+    portability_score: int = Form(default=0),
+    market_demand: int = Form(default=0),
+    monetization_potential: int = Form(default=0),
+    time_to_deploy: int = Form(default=0),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Create a new strategic asset."""
+    from src.models.strategy import StrategicAsset
+
+    asset = StrategicAsset(
+        title=title,
+        description=description,
+        asset_type=AssetCategory(asset_type),
+        visibility=VisibilityLevel(visibility),
+        reusability_score=reusability_score,
+        signaling_strength=signaling_strength,
+        market_relevance=market_relevance,
+        compounding_potential=compounding_potential,
+        portability_score=portability_score,
+        market_demand=market_demand,
+        monetization_potential=monetization_potential,
+        time_to_deploy=time_to_deploy,
+        notes=notes,
+    )
+    saved = await app_state.strategy_repo.save_asset(asset)
+
+    return templates.TemplateResponse(
+        "strategy/partials/asset_card.html",
+        _shared_ctx(request, asset=saved),
+    )
+
+
+@router.delete("/strategy/asset/{asset_id}", response_class=HTMLResponse)
+async def delete_asset(request: Request, asset_id: str) -> HTMLResponse:
+    """Delete a strategic asset."""
+    await app_state.strategy_repo.delete_asset(UUID(asset_id))
+    return HTMLResponse("")
+
+
+# ── Influence Tracking ───────────────────────────────────────────
+
+@router.post("/strategy/influence", response_class=HTMLResponse)
+async def log_influence(
+    request: Request,
+    week_start: str = Form(...),
+    advice_sought: bool = Form(default=False),
+    decision_changed: bool = Form(default=False),
+    framing_adopted: bool = Form(default=False),
+    consultation_count: int = Form(default=0),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Log weekly influence interactions."""
+    from src.models.strategy import InfluenceDeltaCreate
+
+    create = InfluenceDeltaCreate(
+        week_start=week_start,
+        advice_sought=advice_sought,
+        decision_changed=decision_changed,
+        framing_adopted=framing_adopted,
+        consultation_count=consultation_count,
+        notes=notes,
+    )
+    delta = await app_state.influence_tracker.log_week(create)
+
+    return templates.TemplateResponse(
+        "strategy/partials/influence_row.html",
+        _shared_ctx(request, delta=delta),
+    )
+
+
+# ── Weekly Simulation ────────────────────────────────────────────
+
+@router.post("/strategy/simulate", response_class=HTMLResponse)
+async def run_simulation(
+    request: Request,
+    week_start: str = Form(default=""),
+) -> HTMLResponse:
+    """Run the weekly strategic simulation protocol."""
+    if not week_start:
+        # Default to current week's Monday
+        from datetime import timedelta
+        today = datetime.now(timezone.utc).date()
+        monday = today - timedelta(days=today.weekday())
+        week_start = monday.isoformat()
+
+    simulation = await app_state.strategic_simulator.run_simulation(week_start)
+
+    return templates.TemplateResponse(
+        "strategy/partials/simulation_result.html",
+        _shared_ctx(request, latest_simulation=simulation),
+    )
+
+
+# ── Strategy JSON APIs ──────────────────────────────────────────
+
+@router.get("/api/strategy/summary", response_class=JSONResponse)
+async def api_strategy_summary() -> JSONResponse:
+    """JSON API for strategy summary data."""
+    summary = await app_state.strategy_repo.get_strategy_summary()
+    return JSONResponse(summary)
+
+
+@router.get("/api/strategy/visibility-matrix", response_class=JSONResponse)
+async def api_visibility_matrix() -> JSONResponse:
+    """JSON API for initiative visibility distribution."""
+    matrix = await app_state.evaluation_engine.get_visibility_matrix()
+    return JSONResponse(matrix)
+
+
+@router.get("/api/strategy/influence-trend", response_class=JSONResponse)
+async def api_influence_trend() -> JSONResponse:
+    """JSON API for influence trend data."""
+    trend = await app_state.influence_tracker.get_trend()
+    return JSONResponse(trend)

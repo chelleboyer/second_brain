@@ -180,6 +180,39 @@ class BrainEntryRepository:
             log.info("entry_unarchived", entry_id=str(entry_id))
         return await self.get_by_id(entry_id)
 
+    async def pin(self, entry_id: UUID) -> BrainEntry | None:
+        """Pin an entry by setting pinned_at."""
+        now = datetime.now(timezone.utc).isoformat()
+        async with self.db.get_connection() as conn:
+            await conn.execute(
+                "UPDATE brain_entries SET pinned_at = ? WHERE id = ?",
+                (now, str(entry_id)),
+            )
+            await conn.commit()
+            log.info("entry_pinned", entry_id=str(entry_id))
+        return await self.get_by_id(entry_id)
+
+    async def unpin(self, entry_id: UUID) -> BrainEntry | None:
+        """Unpin an entry by clearing pinned_at."""
+        async with self.db.get_connection() as conn:
+            await conn.execute(
+                "UPDATE brain_entries SET pinned_at = NULL WHERE id = ?",
+                (str(entry_id),),
+            )
+            await conn.commit()
+            log.info("entry_unpinned", entry_id=str(entry_id))
+        return await self.get_by_id(entry_id)
+
+    async def get_pinned(self, limit: int = 50) -> list[BrainEntry]:
+        """Get pinned entries, newest pin first."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "SELECT * FROM brain_entries WHERE pinned_at IS NOT NULL AND archived_at IS NULL ORDER BY pinned_at DESC LIMIT ?",
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            return [self._row_to_entry(row) for row in rows]
+
     async def delete(self, entry_id: UUID) -> bool:
         """Permanently delete an entry. Returns True if deleted."""
         async with self.db.get_connection() as conn:
@@ -316,6 +349,65 @@ class BrainEntryRepository:
             )
             await conn.commit()
 
+    async def get_entries_in_date_range(
+        self, start_date: str, end_date: str, include_archived: bool = False,
+    ) -> list[BrainEntry]:
+        """Get entries created between start_date and end_date (inclusive, YYYY-MM-DD)."""
+        archived_clause = "" if include_archived else "AND archived_at IS NULL"
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                f"""
+                SELECT * FROM brain_entries
+                WHERE date(created_at) >= ? AND date(created_at) <= ?
+                {archived_clause}
+                ORDER BY created_at DESC
+                """,
+                (start_date, end_date),
+            )
+            rows = await cursor.fetchall()
+            return [self._row_to_entry(row) for row in rows]
+
+    async def get_project_breakdown(self) -> list[dict]:
+        """Get active entry counts grouped by project (non-null only)."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT project, type, COUNT(*) as count
+                FROM brain_entries
+                WHERE archived_at IS NULL AND project IS NOT NULL AND project != ''
+                GROUP BY project, type
+                ORDER BY project, count DESC
+                """
+            )
+            rows = await cursor.fetchall()
+
+            from collections import defaultdict
+            projects: dict[str, dict] = defaultdict(lambda: {"total": 0, "types": {}})
+            for row in rows:
+                p = row["project"]
+                projects[p]["total"] += row["count"]
+                projects[p]["types"][row["type"]] = row["count"]
+
+            return [
+                {"project": p, "total": d["total"], "types": d["types"]}
+                for p, d in sorted(projects.items(), key=lambda x: x[1]["total"], reverse=True)
+            ]
+
+    async def get_para_breakdown(self) -> dict[str, int]:
+        """Get active entry counts grouped by PARA category."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT para_category, COUNT(*) as count
+                FROM brain_entries
+                WHERE archived_at IS NULL
+                GROUP BY para_category
+                ORDER BY count DESC
+                """
+            )
+            rows = await cursor.fetchall()
+            return {row["para_category"]: row["count"] for row in rows}
+
     async def find_by_content_hash(self, content_hash: str) -> BrainEntry | None:
         """Find an existing entry with the same content hash (exact duplicate check)."""
         async with self.db.get_connection() as conn:
@@ -360,4 +452,9 @@ class BrainEntryRepository:
             extracted_entities=json.loads(row["extracted_entities"]) if "extracted_entities" in row_keys else [],
             novelty=NoveltyVerdict(row["novelty"]) if "novelty" in row_keys else NoveltyVerdict.NEW,
             augments_entry_id=UUID(row["augments_entry_id"]) if "augments_entry_id" in row_keys and row["augments_entry_id"] else None,
+            pinned_at=(
+                datetime.fromisoformat(row["pinned_at"])
+                if "pinned_at" in row_keys and row["pinned_at"]
+                else None
+            ),
         )

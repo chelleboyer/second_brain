@@ -1,0 +1,31 @@
+<div class="card" style="padding: 0.75rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem;"
+     id="link-{{ link.id }}">
+    <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+            {% if link.linked_type == 'entry' %}
+            <span style="font-size: 0.7rem; padding: 0.1rem 0.3rem; background: rgba(59,130,246,0.12); color: var(--color-blue); border-radius: 4px;">📄 Entry</span>
+            {% else %}
+            <span style="font-size: 0.7rem; padding: 0.1rem 0.3rem; background: rgba(168,85,247,0.12); color: var(--color-purple); border-radius: 4px;">🏷️ Entity</span>
+            {% endif %}
+            {% if link.linked_type == 'entry' %}
+            <a href="/entry/{{ link.linked_id }}" style="font-weight: 500; font-size: 0.85rem; text-decoration: none; color: var(--text-primary);">
+                {{ link.linked_title or link.linked_id }}
+            </a>
+            {% elif link.linked_type == 'entity' %}
+            <a href="/entities#{{ link.linked_id }}" style="font-weight: 500; font-size: 0.85rem; text-decoration: none; color: var(--text-primary);">
+                {{ link.linked_title or link.linked_id }}
+            </a>
+            {% endif %}
+        </div>
+        {% if link.link_note %}
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">{{ link.link_note }}</div>
+        {% endif %}
+    </div>
+    <button hx-delete="/strategy/link/{{ link.id }}"
+            hx-target="#link-{{ link.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Remove this link?"
+            style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:0.7rem;padding:0.2rem;">
+        ✕
+    </button>
+</div>

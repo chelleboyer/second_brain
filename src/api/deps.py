@@ -6,8 +6,10 @@ from fastapi.templating import Jinja2Templates
 
 from src.classification.classifier import Classifier
 from src.core.entity_resolution import EntityRepository, EntityResolver
+from src.core.evaluation import MoveEvaluationEngine
 from src.core.graph import GraphService
 from src.core.pipeline import CapturePipeline
+from src.core.simulation import InfluenceTracker, StrategicSimulator
 from src.core.suggestions import SuggestionEngine
 from src.core.summarization import SummarizationService
 from src.retrieval.recall import RecallService
@@ -15,6 +17,7 @@ from src.retrieval.search import SearchOrchestrator
 from src.slack.commands import SlackCommandHandler
 from src.storage.database import Database
 from src.storage.repository import BrainEntryRepository
+from src.storage.strategy_repository import StrategyRepository
 
 
 class AppState:
@@ -28,11 +31,16 @@ class AppState:
     database: Database
     entity_repo: EntityRepository
     entity_resolver: EntityResolver
-    # Phase 2: Intelligence layer
+    # Phase 1: Intelligence layer
     graph_service: GraphService
     suggestion_engine: SuggestionEngine
     summarization_service: SummarizationService
     slack_commands: SlackCommandHandler
+    # Phase II: Strategic Positioning Engine
+    strategy_repo: StrategyRepository
+    evaluation_engine: MoveEvaluationEngine
+    influence_tracker: InfluenceTracker
+    strategic_simulator: StrategicSimulator
 
 
 app_state = AppState()
