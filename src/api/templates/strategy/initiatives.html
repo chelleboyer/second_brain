@@ -4,131 +4,147 @@
 {% block nav_strategy %}active{% endblock %}
 
 {% block content %}
-<div class="strategy-initiatives">
-    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <div>
-            <div style="font-size: 0.8rem; margin-bottom: 0.25rem;">
-                <a href="/strategy" style="color: var(--text-secondary); text-decoration: none;">♟️ Strategy</a>
-                <span style="color: var(--text-secondary);"> / </span>
+<div class="strat-dash">
+
+    <!-- Hero -->
+    <header class="strat-hero">
+        <div class="strat-hero__left">
+            <div style="font-size:0.8rem;margin-bottom:0.15rem;">
+                <a href="/strategy" style="color:var(--text-muted);text-decoration:none;">♟️ Strategy</a>
+                <span style="color:var(--text-muted);"> / </span>
                 <span>Initiatives</span>
             </div>
-            <h1 style="margin: 0;">📋 Initiative Scoring</h1>
+            <h1 class="strat-hero__title">📋 Initiative Scoring</h1>
         </div>
-    </div>
+    </header>
 
-    <!-- Category Tabs -->
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+    <!-- Category Filters (with counts) -->
+    <div class="strat-chips" style="margin-bottom:var(--sp-5);">
         <a href="/strategy/initiatives?status={{ active_status }}"
-           class="btn {% if not active_category %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">All</a>
+           class="strat-chip {% if not active_category %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">All
+           {% if breakdown %}<span class="strat-chip__count">{{ (breakdown.get('strategic', [])|length + breakdown.get('supportive', [])|length + breakdown.get('maintenance', [])|length) }}</span>{% endif %}</a>
         <a href="/strategy/initiatives?status={{ active_status }}&category=strategic"
-           class="btn {% if active_category == 'strategic' %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">♟️ Strategic</a>
+           class="strat-chip {% if active_category == 'strategic' %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">♟️ Strategic
+           {% if breakdown %}<span class="strat-chip__count" style="color:var(--gold);">{{ breakdown.get('strategic', [])|length }}</span>{% endif %}</a>
         <a href="/strategy/initiatives?status={{ active_status }}&category=supportive"
-           class="btn {% if active_category == 'supportive' %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">🤝 Supportive</a>
+           class="strat-chip {% if active_category == 'supportive' %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">🤝 Supportive
+           {% if breakdown %}<span class="strat-chip__count">{{ breakdown.get('supportive', [])|length }}</span>{% endif %}</a>
         <a href="/strategy/initiatives?status={{ active_status }}&category=maintenance"
-           class="btn {% if active_category == 'maintenance' %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">🔧 Maintenance</a>
+           class="strat-chip {% if active_category == 'maintenance' %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">🔧 Maintenance
+           {% if breakdown %}<span class="strat-chip__count">{{ breakdown.get('maintenance', [])|length }}</span>{% endif %}</a>
+        {% if visibility_matrix %}
+        <span class="strat-chip" style="margin-left:auto;cursor:default;">
+            🔭 <span class="strat-chip__count" style="color:var(--teal);">{{ visibility_matrix.get('executive', 0) + visibility_matrix.get('market', 0) }}</span> visible
+        </span>
+        {% endif %}
     </div>
 
-    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <div class="strat-grid strat-grid--2">
+
         <!-- Initiative List -->
         <div>
-            <div id="initiative-list">
+            <div id="initiative-list" class="strat-list">
                 {% for initiative in initiatives %}
                     {% include "strategy/partials/initiative_card.html" %}
                 {% else %}
-                    <div class="card" style="padding: 2rem; text-align: center;">
-                        <p class="text-muted">No initiatives found. Create one using the form.</p>
+                    <div class="strat-empty" style="padding:2rem;">
+                        <div style="font-size:1.5rem;opacity:0.3;margin-bottom:0.5rem;">📋</div>
+                        <p>No initiatives found. Create one using the form or via Slack:<br>
+                        <code style="font-size:0.75rem;color:var(--accent);">/brain initiative "Title" description text</code></p>
                     </div>
                 {% endfor %}
             </div>
         </div>
 
         <!-- Create Initiative Form -->
-        <div class="card" style="padding: 1.25rem; position: sticky; top: 1rem; align-self: start;">
-            <h3 style="margin: 0 0 1rem;">➕ New Initiative</h3>
-            <form hx-post="/strategy/initiatives"
-                  hx-target="#initiative-list"
-                  hx-swap="afterbegin"
-                  x-data="{ itype: 'scored', total: 0 }"
-                  @input="total = Array.from($el.querySelectorAll('.score-input')).reduce((s, i) => s + parseInt(i.value || 0), 0)">
+        <div class="strat-tile" style="position:sticky;top:4rem;align-self:start;">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">➕ New Initiative</h2>
+            </div>
+            <div class="strat-tile__body">
+                <form hx-post="/strategy/initiatives"
+                      hx-target="#initiative-list"
+                      hx-swap="afterbegin"
+                      x-data="{ itype: 'scored', total: 0 }"
+                      @input="total = Array.from($el.querySelectorAll('.score-input')).reduce((s, i) => s + parseInt(i.value || 0), 0)">
 
-                <!-- Type Toggle -->
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <button type="button" @click="itype = 'scored'"
-                            :class="itype === 'scored' ? 'btn btn-primary' : 'btn btn-secondary'"
-                            style="flex: 1; font-size: 0.8rem;">📊 Scored</button>
-                    <button type="button" @click="itype = 'mandatory'"
-                            :class="itype === 'mandatory' ? 'btn btn-primary' : 'btn btn-secondary'"
-                            style="flex: 1; font-size: 0.8rem;">📌 Mandatory</button>
-                </div>
-                <input type="hidden" name="initiative_type" :value="itype">
+                    <!-- Type Toggle -->
+                    <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+                        <button type="button" @click="itype = 'scored'"
+                                :class="itype === 'scored' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'"
+                                style="flex:1;">📊 Scored</button>
+                        <button type="button" @click="itype = 'mandatory'"
+                                :class="itype === 'mandatory' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm'"
+                                style="flex:1;">📌 Mandatory</button>
+                    </div>
+                    <input type="hidden" name="initiative_type" :value="itype">
 
-                <input type="text" name="title" placeholder="Initiative title" required
-                       style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <input type="text" name="title" placeholder="Initiative title" required
+                           class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;">
 
-                <textarea name="description" placeholder="Description (optional)" rows="2"
-                          style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+                    <textarea name="description" placeholder="Description (optional)" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
 
-                <!-- 5-Question Scoring (scored only) -->
-                <div x-show="itype === 'scored'" x-transition style="margin-bottom: 1rem;">
-                    <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem;">Move Evaluation (0-5 each)</div>
-                    {% for q in questions %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color);">
-                        <div>
-                            <div style="font-size: 0.8rem;">{{ q.question }}</div>
-                            <div style="font-size: 0.7rem; color: var(--text-secondary);">{{ q.help }}</div>
+                    <!-- 5-Question Scoring -->
+                    <div x-show="itype === 'scored'" x-transition style="margin-bottom:0.75rem;">
+                        <div class="strat-section-label">Move Evaluation (0–5 each)</div>
+                        {% for q in questions %}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.3rem 0;border-bottom:1px solid var(--border);">
+                            <div style="flex:1;">
+                                <div style="font-size:0.8rem;">{{ q.question }}</div>
+                                <div style="font-size:0.65rem;color:var(--text-muted);">{{ q.help }}</div>
+                            </div>
+                            <input type="number" name="{{ q.key }}" value="0" min="0" max="5"
+                                   class="score-input input"
+                                   style="width:48px;text-align:center;font-size:0.85rem;padding:0.25rem;margin-left:0.5rem;">
                         </div>
-                        <input type="number" name="{{ q.key }}" value="0" min="0" max="5"
-                               class="score-input"
-                               style="width:50px;padding:0.3rem;text-align:center;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                        {% endfor %}
+                        <div style="display:flex;justify-content:space-between;padding:0.4rem 0;font-weight:700;font-size:0.85rem;">
+                            <span>Total Score</span>
+                            <span x-text="total + '/25'"
+                                  :style="total >= 18 ? 'color:var(--gold)' : total >= 12 ? 'color:var(--accent)' : 'color:var(--text-muted)'"
+                            >0/25</span>
+                        </div>
+                        <div style="font-size:0.7rem;text-align:center;padding:0.2rem;border-radius:var(--radius-sm);"
+                             :style="total >= 18 ? 'background:rgba(251,191,36,0.12);color:var(--gold)' : total >= 12 ? 'background:rgba(79,142,247,0.12);color:var(--accent)' : 'background:var(--bg-input);color:var(--text-muted)'"
+                             x-text="total >= 18 ? '♟️ Strategic Move' : total >= 12 ? '🤝 Supportive' : '🔧 Maintenance'">
+                        </div>
                     </div>
-                    {% endfor %}
-                    <div style="display:flex;justify-content:space-between;padding:0.5rem 0;font-weight:700;">
-                        <span>Total Score</span>
-                        <span x-text="total + '/25'"
-                              :style="total >= 18 ? 'color:var(--color-gold)' : total >= 12 ? 'color:var(--color-blue)' : 'color:var(--text-secondary)'"
-                        >0/25</span>
-                    </div>
-                    <div style="font-size:0.75rem;text-align:center;padding:0.25rem;border-radius:4px;"
-                         :style="total >= 18 ? 'background:rgba(255,215,0,0.15);color:var(--color-gold)' : total >= 12 ? 'background:rgba(59,130,246,0.15);color:var(--color-blue)' : 'background:rgba(107,114,128,0.15);color:var(--text-secondary)'"
-                         x-text="total >= 18 ? '♟️ Strategic Move' : total >= 12 ? '🤝 Supportive' : '🔧 Maintenance'">
-                    </div>
-                </div>
 
-                <!-- Mandatory hint -->
-                <div x-show="itype === 'mandatory'" x-transition
-                     style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(239,68,68,0.08); border-left: 3px solid var(--color-red); border-radius: 4px; font-size: 0.8rem;">
-                    <strong>📌 Mandatory</strong> — This initiative must be completed regardless of strategic score.
-                    Link it to entries and entities after creation to build relationships.
-                </div>
-
-                <!-- Visibility + Risk -->
-                <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem;">Visibility</label>
-                        <select name="visibility"
-                                style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                            {% for v in visibility_levels %}
-                            <option value="{{ v.value }}">{{ visibility_display[v].emoji }} {{ visibility_display[v].label }}</option>
-                            {% endfor %}
-                        </select>
+                    <!-- Mandatory hint -->
+                    <div x-show="itype === 'mandatory'" x-transition
+                         class="strat-rec" style="margin-bottom:0.75rem;border-left-color:var(--red);">
+                        <strong>📌 Mandatory</strong> — Must be completed regardless of score.
                     </div>
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.8rem; display: block; margin-bottom: 0.25rem;">Risk (0-5)</label>
-                        <input type="number" name="risk_level" value="0" min="0" max="5"
-                               style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+
+                    <!-- Visibility + Risk -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Visibility</label>
+                            <select name="visibility" class="input" style="width:100%;font-size:0.85rem;">
+                                {% for v in visibility_levels %}
+                                <option value="{{ v.value }}">{{ visibility_display[v].emoji }} {{ visibility_display[v].label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Risk (0–5)</label>
+                            <input type="number" name="risk_level" value="0" min="0" max="5"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
                     </div>
-                </div>
 
-                <textarea name="notes" placeholder="Notes (optional)" rows="2"
-                          style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+                    <textarea name="notes" placeholder="Notes (optional)" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
 
-                <button type="submit" class="btn btn-primary" style="width:100%;"
-                        x-text="itype === 'scored' ? 'Evaluate & Save' : 'Create Initiative'">Evaluate &amp; Save</button>
-            </form>
+                    <button type="submit" class="btn btn-primary" style="width:100%;"
+                            x-text="itype === 'scored' ? 'Evaluate & Save' : 'Create Initiative'">Evaluate &amp; Save</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

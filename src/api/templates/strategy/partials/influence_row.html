@@ -1,15 +1,31 @@
-<div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
-    <span style="font-weight: 600; min-width: 85px;">{{ delta.week_start }}</span>
-    <span style="font-size: 1rem; font-weight: 700;
-        {% if delta.delta_score >= 5 %}color: var(--color-green);
-        {% elif delta.delta_score >= 2 %}color: var(--color-blue);
-        {% else %}color: var(--text-secondary);{% endif %}">
+<div class="strat-inf-row">
+    <span class="strat-inf-row__date">{{ delta.week_start }}</span>
+    <span class="strat-inf-row__score"
+        style="{% if delta.delta_score >= 7 %}color:var(--green);{% elif delta.delta_score >= 4 %}color:var(--accent);{% elif delta.delta_score >= 1 %}color:var(--gold);{% else %}color:var(--text-muted);{% endif %}">
         +{{ delta.delta_score }}
     </span>
-    <span style="color: var(--text-secondary); font-size: 0.7rem;">
-        {% if delta.advice_sought %}✓ advice{% endif %}
-        {% if delta.decision_changed %}✓ decision{% endif %}
-        {% if delta.framing_adopted %}✓ framing{% endif %}
-        {% if delta.consultation_count > 0 %}({{ delta.consultation_count }} consults){% endif %}
+    <div class="strat-inf-row__bar-track">
+        <div class="strat-inf-row__bar"
+             style="width:{{ (delta.delta_score / 10 * 100) | int }}%;
+             {% if delta.delta_score >= 7 %}background:var(--green);{% elif delta.delta_score >= 4 %}background:var(--accent);{% elif delta.delta_score >= 1 %}background:var(--gold);{% else %}background:var(--text-muted);{% endif %}">
+        </div>
+    </div>
+    {% if delta.stakeholder_name %}
+    <span class="strat-inf-row__stakeholder">{{ delta.stakeholder_name }}</span>
+    {% endif %}
+    <span class="strat-inf-row__signals">
+        {% if delta.advice_sought %}<span title="Advice sought (+2)">💬</span>{% endif %}
+        {% if delta.decision_changed %}<span title="Decision changed (+3)">⚖️</span>{% endif %}
+        {% if delta.framing_adopted %}<span title="Framing adopted (+3)">🧠</span>{% endif %}
+        {% if delta.consultation_count > 0 %}<span title="{{ delta.consultation_count }} consults (up to +4)">🤝{{ delta.consultation_count }}</span>{% endif %}
+    </span>
+    <span class="strat-inf-row__breakdown">
+        {%- set parts = [] -%}
+        {%- if delta.advice_sought %}{%- set _ = parts.append('+2') -%}{% endif -%}
+        {%- if delta.decision_changed %}{%- set _ = parts.append('+3') -%}{% endif -%}
+        {%- if delta.framing_adopted %}{%- set _ = parts.append('+3') -%}{% endif -%}
+        {%- if delta.consultation_count > 0 %}{%- set c = [delta.consultation_count, 4] | min -%}{%- set _ = parts.append('+' ~ c) -%}{% endif -%}
+        {{ parts | join(' ') }}{% if delta.delta_score == 10 %} ⊤{% endif %}
     </span>
 </div>
+

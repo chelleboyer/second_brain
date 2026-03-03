@@ -243,6 +243,8 @@ class InfluenceDelta(BaseModel):
 
     id: UUID = Field(default_factory=uuid4)
     week_start: str  # ISO date string e.g. "2026-03-02"
+    stakeholder_id: str | None = None  # UUID string of related stakeholder
+    stakeholder_name: str | None = None  # Denormalized for display
     advice_sought: bool = False
     decision_changed: bool = False
     framing_adopted: bool = False
@@ -269,6 +271,7 @@ class InfluenceDeltaCreate(BaseModel):
     """Input model for logging a weekly influence delta."""
 
     week_start: str
+    stakeholder_id: str | None = None  # UUID string of related stakeholder
     advice_sought: bool = False
     decision_changed: bool = False
     framing_adopted: bool = False

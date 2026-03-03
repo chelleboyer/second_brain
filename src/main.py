@@ -216,6 +216,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         entity_repo=entity_repo,
         summarization_service=summarization_service,
         search=search_orchestrator,
+        strategy_repo=strategy_repo,
+        evaluation_engine=evaluation_engine,
     )
     app_state.slack_commands = slack_commands
     log.info("slack_commands_initialized")

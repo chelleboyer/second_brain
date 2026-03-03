@@ -310,6 +310,8 @@ class Database:
                 CREATE TABLE IF NOT EXISTS influence_deltas (
                     id TEXT PRIMARY KEY,
                     week_start TEXT NOT NULL,
+                    stakeholder_id TEXT,
+                    stakeholder_name TEXT,
                     advice_sought INTEGER NOT NULL DEFAULT 0,
                     decision_changed INTEGER NOT NULL DEFAULT 0,
                     framing_adopted INTEGER NOT NULL DEFAULT 0,
@@ -358,6 +360,8 @@ class Database:
                 ("brain_entries", "content_hash", "TEXT"),
                 ("brain_entries", "pinned_at", "TEXT"),
                 ("initiatives", "initiative_type", "TEXT NOT NULL DEFAULT 'scored'"),
+                ("influence_deltas", "stakeholder_id", "TEXT"),
+                ("influence_deltas", "stakeholder_name", "TEXT"),
             ]
             for table, column, col_type in migration_columns:
                 try:

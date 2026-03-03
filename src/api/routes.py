@@ -1354,9 +1354,10 @@ async def strategy_dashboard(request: Request) -> HTMLResponse:
     initiatives = await app_state.strategy_repo.list_initiatives(status="active")
     stakeholders = await app_state.strategy_repo.list_stakeholders()
     assets = await app_state.strategy_repo.list_assets()
-    influence_deltas = await app_state.strategy_repo.list_influence_deltas(limit=8)
+    influence_deltas = await app_state.strategy_repo.list_influence_deltas(limit=12)
     latest_sim = await app_state.strategy_repo.get_latest_simulation()
     influence_trend = await app_state.influence_tracker.get_trend()
+    influence_insights = await app_state.influence_tracker.get_insights()
 
     return templates.TemplateResponse(
         "strategy/dashboard.html",
@@ -1369,6 +1370,7 @@ async def strategy_dashboard(request: Request) -> HTMLResponse:
             influence_deltas=influence_deltas,
             latest_simulation=latest_sim,
             influence_trend=influence_trend,
+            influence_insights=influence_insights,
             questions=app_state.evaluation_engine.get_questions(),
         ),
     )
@@ -1885,6 +1887,7 @@ async def asset_card(request: Request, asset_id: str) -> HTMLResponse:
 async def log_influence(
     request: Request,
     week_start: str = Form(...),
+    stakeholder_id: str = Form(default=""),
     advice_sought: bool = Form(default=False),
     decision_changed: bool = Form(default=False),
     framing_adopted: bool = Form(default=False),
@@ -1896,6 +1899,7 @@ async def log_influence(
 
     create = InfluenceDeltaCreate(
         week_start=week_start,
+        stakeholder_id=stakeholder_id if stakeholder_id else None,
         advice_sought=advice_sought,
         decision_changed=decision_changed,
         framing_adopted=framing_adopted,
@@ -1954,6 +1958,23 @@ async def api_influence_trend() -> JSONResponse:
     """JSON API for influence trend data."""
     trend = await app_state.influence_tracker.get_trend()
     return JSONResponse(trend)
+
+
+@router.get("/api/strategy/influence-insights", response_class=JSONResponse)
+async def api_influence_insights() -> JSONResponse:
+    """JSON API for deep influence insights."""
+    insights = await app_state.influence_tracker.get_insights()
+    return JSONResponse(insights)
+
+
+@router.get("/strategy/influence-insights", response_class=HTMLResponse)
+async def influence_insights_panel(request: Request) -> HTMLResponse:
+    """Return the influence insights panel partial (lazy-loaded via HTMX)."""
+    insights = await app_state.influence_tracker.get_insights()
+    return templates.TemplateResponse(
+        "strategy/partials/influence_insights.html",
+        _shared_ctx(request, insights=insights),
+    )
 
 
 @router.post("/strategy/load-examples", response_class=HTMLResponse)

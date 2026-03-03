@@ -513,6 +513,210 @@ class TestInfluenceTracker:
         assert trend["direction"] in ("up", "down", "flat")
         assert len(trend["recent_scores"]) == 6
 
+    @pytest.mark.asyncio
+    async def test_log_week_with_stakeholder(self, influence_tracker, strategy_repo):
+        """Log week with stakeholder_id resolves name."""
+        sh = Stakeholder(name="Alice", role="VP Eng", influence_level=8)
+        await strategy_repo.save_stakeholder(sh)
+
+        create = InfluenceDeltaCreate(
+            week_start="2026-04-01",
+            advice_sought=True,
+            consultation_count=1,
+            stakeholder_id=str(sh.id),
+        )
+        result = await influence_tracker.log_week(create)
+        assert result.stakeholder_name == "Alice"
+        assert result.stakeholder_id == str(sh.id)
+
+    @pytest.mark.asyncio
+    async def test_log_week_invalid_stakeholder(self, influence_tracker):
+        """Log week with invalid stakeholder_id ignores it gracefully."""
+        create = InfluenceDeltaCreate(
+            week_start="2026-04-01",
+            advice_sought=True,
+            stakeholder_id="00000000-0000-0000-0000-000000000000",
+        )
+        result = await influence_tracker.log_week(create)
+        assert result.stakeholder_name is None
+
+    @pytest.mark.asyncio
+    async def test_get_insights_empty(self, influence_tracker):
+        """Insights on empty data returns safe defaults."""
+        insights = await influence_tracker.get_insights()
+        assert insights["trend"]["direction"] == "flat"
+        assert insights["streaks"]["current"] == 0
+        assert insights["streaks"]["best"] == 0
+        assert insights["signal_breakdown"]["advice_sought"] == 0
+        assert insights["signal_breakdown"]["decision_changed"] == 0
+        assert insights["stakeholder_heatmap"] == []
+        assert len(insights["recommendations"]) >= 1  # Has starter recommendation
+
+    @pytest.mark.asyncio
+    async def test_get_insights_with_data(self, influence_tracker):
+        """Insights compute correctly with several weeks of data."""
+        # Log 6 weeks with increasing engagement
+        for i in range(6):
+            await influence_tracker.log_week(
+                InfluenceDeltaCreate(
+                    week_start=f"2026-0{i + 1}-01",
+                    advice_sought=True,
+                    decision_changed=(i >= 3),
+                    framing_adopted=(i >= 4),
+                    consultation_count=i + 1,
+                )
+            )
+
+        insights = await influence_tracker.get_insights(weeks=6)
+
+        # Should have trend data
+        assert insights["trend"]["direction"] in ("up", "down", "flat")
+        assert len(insights["trend"]["recent_scores"]) > 0
+
+        # Signal breakdown should have advice_sought
+        assert "advice_sought" in insights["signal_breakdown"]
+        assert insights["signal_breakdown"]["advice_sought"] == 6
+
+        # Peak/valley present
+        assert insights["peak_week"] is not None
+        assert insights["valley_week"] is not None
+        assert insights["peak_week"]["score"] >= insights["valley_week"]["score"]
+
+    @pytest.mark.asyncio
+    async def test_get_insights_stakeholder_heatmap(
+        self, influence_tracker, strategy_repo
+    ):
+        """Stakeholder heatmap tracks attributed influence."""
+        sh = Stakeholder(name="Bob", role="CTO", influence_level=9)
+        await strategy_repo.save_stakeholder(sh)
+
+        # 3 weeks attributed to Bob
+        for i in range(3):
+            await influence_tracker.log_week(
+                InfluenceDeltaCreate(
+                    week_start=f"2026-0{i + 1}-10",
+                    advice_sought=True,
+                    consultation_count=2,
+                    stakeholder_id=str(sh.id),
+                )
+            )
+        # 1 week unattributed
+        await influence_tracker.log_week(
+            InfluenceDeltaCreate(
+                week_start="2026-04-10",
+                consultation_count=1,
+            )
+        )
+
+        insights = await influence_tracker.get_insights(weeks=12)
+        heatmap = insights["stakeholder_heatmap"]
+
+        assert len(heatmap) >= 1
+        bob_entry = next((h for h in heatmap if h["name"] == "Bob"), None)
+        assert bob_entry is not None
+        assert bob_entry["weeks"] == 3
+        assert bob_entry["total_score"] > 0
+
+    @pytest.mark.asyncio
+    async def test_get_insights_streaks(self, influence_tracker):
+        """Streak detection works for consecutive high-score weeks."""
+        # Log 5 high-scoring weeks (score >= 5 each)
+        for i in range(5):
+            await influence_tracker.log_week(
+                InfluenceDeltaCreate(
+                    week_start=f"2026-01-{(i + 1) * 7:02d}",
+                    advice_sought=True,
+                    decision_changed=True,
+                    consultation_count=2,
+                )
+            )
+
+        insights = await influence_tracker.get_insights(weeks=12)
+        assert insights["streaks"]["best"] >= 3  # at least 3 consecutive high weeks
+
+    @pytest.mark.asyncio
+    async def test_get_insights_recommendations(self, influence_tracker):
+        """Recommendations generated when engagement patterns detected."""
+        # Log several weeks with advice but no framing adopted
+        for i in range(4):
+            await influence_tracker.log_week(
+                InfluenceDeltaCreate(
+                    week_start=f"2026-0{i + 1}-01",
+                    advice_sought=True,
+                    decision_changed=False,
+                    framing_adopted=False,
+                    consultation_count=1,
+                )
+            )
+
+        insights = await influence_tracker.get_insights(weeks=12)
+        # Should have at least one recommendation about framing or decisions
+        assert len(insights["recommendations"]) > 0
+
+
+class TestInfluenceDeltaStakeholderFields:
+    """Tests for stakeholder fields on InfluenceDelta model."""
+
+    def test_defaults_to_none(self):
+        delta = InfluenceDelta(week_start="2026-03-02")
+        assert delta.stakeholder_id is None
+        assert delta.stakeholder_name is None
+
+    def test_stakeholder_fields_set(self):
+        delta = InfluenceDelta(
+            week_start="2026-03-02",
+            stakeholder_id="abc-123",
+            stakeholder_name="Alice",
+            advice_sought=True,
+        )
+        assert delta.stakeholder_id == "abc-123"
+        assert delta.stakeholder_name == "Alice"
+        assert delta.computed_delta == 2
+
+    def test_create_with_stakeholder_id(self):
+        create = InfluenceDeltaCreate(
+            week_start="2026-03-02",
+            stakeholder_id="def-456",
+        )
+        assert create.stakeholder_id == "def-456"
+
+
+class TestInfluenceRepository:
+    """Tests for stakeholder persistence on influence deltas."""
+
+    @pytest.mark.asyncio
+    async def test_save_and_retrieve_with_stakeholder(self, strategy_repo):
+        """Stakeholder fields round-trip through the database."""
+        delta = InfluenceDelta(
+            week_start="2026-04-01",
+            advice_sought=True,
+            consultation_count=2,
+            stakeholder_id="test-id-123",
+            stakeholder_name="Test Person",
+            delta_score=4,
+        )
+        await strategy_repo.save_influence_delta(delta)
+
+        deltas = await strategy_repo.list_influence_deltas(limit=5)
+        assert len(deltas) == 1
+        assert deltas[0].stakeholder_id == "test-id-123"
+        assert deltas[0].stakeholder_name == "Test Person"
+
+    @pytest.mark.asyncio
+    async def test_save_without_stakeholder(self, strategy_repo):
+        """Deltas without stakeholder still work."""
+        delta = InfluenceDelta(
+            week_start="2026-04-01",
+            advice_sought=True,
+            delta_score=2,
+        )
+        await strategy_repo.save_influence_delta(delta)
+
+        deltas = await strategy_repo.list_influence_deltas(limit=5)
+        assert len(deltas) == 1
+        assert deltas[0].stakeholder_id is None
+        assert deltas[0].stakeholder_name is None
+
 
 # ── Simulation Tests ─────────────────────────────────────────────
 
@@ -1045,3 +1249,70 @@ class TestPipelineAutoLink:
 
         links = await pipeline_with_strategy._auto_link_initiatives(entry)
         assert links == []
+
+
+# ── Example Dataset Tests ────────────────────────────────────────
+
+
+class TestExampleDatasets:
+    """Tests for enhanced example datasets with stakeholder attribution."""
+
+    def test_corporate_influence_has_stakeholder_names(self):
+        from src.core.example_datasets import CORPORATE_INFLUENCE
+        attributed = [d for d in CORPORATE_INFLUENCE if d.stakeholder_name]
+        assert len(attributed) >= 8, "Most corporate influence entries should have stakeholder attribution"
+
+    def test_personal_influence_has_stakeholder_names(self):
+        from src.core.example_datasets import PERSONAL_INFLUENCE
+        attributed = [d for d in PERSONAL_INFLUENCE if d.stakeholder_name]
+        assert len(attributed) >= 7, "Most personal influence entries should have stakeholder attribution"
+
+    def test_corporate_influence_has_varied_scores(self):
+        from src.core.example_datasets import CORPORATE_INFLUENCE
+        scores = [d.computed_delta for d in CORPORATE_INFLUENCE]
+        assert min(scores) < 3, "Should include low-score weeks"
+        assert max(scores) >= 8, "Should include high-score weeks"
+        assert len(scores) >= 10, "Should have at least 10 weeks of data"
+
+    def test_personal_influence_has_varied_scores(self):
+        from src.core.example_datasets import PERSONAL_INFLUENCE
+        scores = [d.computed_delta for d in PERSONAL_INFLUENCE]
+        assert min(scores) == 0, "Should include zero-score weeks"
+        assert max(scores) >= 8, "Should include high-score weeks"
+        assert len(scores) >= 10, "Should have at least 10 weeks of data"
+
+    def test_corporate_stakeholder_names_match_stakeholders(self):
+        from src.core.example_datasets import CORPORATE_INFLUENCE, CORPORATE_STAKEHOLDERS
+        stakeholder_names = {s.name for s in CORPORATE_STAKEHOLDERS}
+        for delta in CORPORATE_INFLUENCE:
+            if delta.stakeholder_name:
+                assert delta.stakeholder_name in stakeholder_names, (
+                    f"'{delta.stakeholder_name}' not in corporate stakeholders"
+                )
+
+    def test_personal_stakeholder_names_match_stakeholders(self):
+        from src.core.example_datasets import PERSONAL_INFLUENCE, PERSONAL_STAKEHOLDERS
+        stakeholder_names = {s.name for s in PERSONAL_STAKEHOLDERS}
+        for delta in PERSONAL_INFLUENCE:
+            if delta.stakeholder_name:
+                assert delta.stakeholder_name in stakeholder_names, (
+                    f"'{delta.stakeholder_name}' not in personal stakeholders"
+                )
+
+    @pytest.mark.asyncio
+    async def test_load_corporate_dataset(self, strategy_repo):
+        from src.core.example_datasets import load_example_dataset
+        counts = await load_example_dataset(strategy_repo, "corporate")
+        assert counts["stakeholders"] == 5
+        assert counts["initiatives"] >= 5
+        assert counts["assets"] >= 5
+        assert counts["influence_deltas"] == 10
+
+    @pytest.mark.asyncio
+    async def test_load_personal_dataset(self, strategy_repo):
+        from src.core.example_datasets import load_example_dataset
+        counts = await load_example_dataset(strategy_repo, "personal")
+        assert counts["stakeholders"] == 5
+        assert counts["initiatives"] >= 5
+        assert counts["assets"] >= 5
+        assert counts["influence_deltas"] == 10

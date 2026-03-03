@@ -1,6 +1,7 @@
 """Weekly Strategic Simulation — generates strategic moves from current state."""
 
 from datetime import datetime, timezone
+from uuid import UUID
 
 import structlog
 
@@ -28,8 +29,22 @@ class InfluenceTracker:
         self, create: InfluenceDeltaCreate
     ) -> InfluenceDelta:
         """Log influence interactions for a week and compute delta."""
+        # Resolve stakeholder name if ID provided
+        stakeholder_name = None
+        if create.stakeholder_id:
+            try:
+                stakeholder = await self.strategy_repo.get_stakeholder(
+                    UUID(create.stakeholder_id)
+                )
+                if stakeholder:
+                    stakeholder_name = stakeholder.name
+            except Exception:
+                pass
+
         delta = InfluenceDelta(
             week_start=create.week_start,
+            stakeholder_id=create.stakeholder_id,
+            stakeholder_name=stakeholder_name,
             advice_sought=create.advice_sought,
             decision_changed=create.decision_changed,
             framing_adopted=create.framing_adopted,
@@ -44,6 +59,7 @@ class InfluenceTracker:
             "influence_logged",
             week=saved.week_start,
             delta=saved.delta_score,
+            stakeholder=stakeholder_name,
         )
         return saved
 
@@ -79,6 +95,153 @@ class InfluenceTracker:
             "direction": direction,
             "recent_scores": scores,
             "average": round(avg, 2),
+        }
+
+    async def get_insights(self, weeks: int = 12) -> dict:
+        """Compute deep insights from influence history.
+
+        Returns:
+            trend: basic trend info (direction, average, scores)
+            streaks: current and best streak of high-influence weeks
+            signal_breakdown: which signals fire most often
+            stakeholder_heatmap: per-stakeholder influence contribution
+            recommendations: actionable suggestions
+        """
+        deltas = await self.strategy_repo.list_influence_deltas(limit=weeks)
+        trend = await self.get_trend(weeks)
+
+        if not deltas:
+            return {
+                "trend": trend,
+                "streaks": {"current": 0, "best": 0},
+                "signal_breakdown": {
+                    "advice_sought": 0, "decision_changed": 0,
+                    "framing_adopted": 0, "total_consultations": 0,
+                },
+                "stakeholder_heatmap": [],
+                "weeks_logged": 0,
+                "recommendations": ["Start logging weekly influence interactions to build your trend data."],
+            }
+
+        # ── Signal breakdown ──
+        advice_count = sum(1 for d in deltas if d.advice_sought)
+        decision_count = sum(1 for d in deltas if d.decision_changed)
+        framing_count = sum(1 for d in deltas if d.framing_adopted)
+        total_consults = sum(d.consultation_count for d in deltas)
+
+        signal_breakdown = {
+            "advice_sought": advice_count,
+            "decision_changed": decision_count,
+            "framing_adopted": framing_count,
+            "total_consultations": total_consults,
+            "advice_pct": round(advice_count / len(deltas) * 100) if deltas else 0,
+            "decision_pct": round(decision_count / len(deltas) * 100) if deltas else 0,
+            "framing_pct": round(framing_count / len(deltas) * 100) if deltas else 0,
+        }
+
+        # ── Streaks (consecutive weeks scoring >= 5) ──
+        # Deltas come newest-first, reverse for chronological order
+        chronological = list(reversed(deltas))
+        current_streak = 0
+        best_streak = 0
+        streak = 0
+        for d in chronological:
+            if d.delta_score >= 5:
+                streak += 1
+                best_streak = max(best_streak, streak)
+            else:
+                streak = 0
+        current_streak = streak  # streak at the end = current
+
+        # ── Stakeholder heatmap ──
+        stakeholder_map: dict[str, dict] = {}
+        for d in deltas:
+            name = d.stakeholder_name or "Unattributed"
+            if name not in stakeholder_map:
+                stakeholder_map[name] = {
+                    "name": name,
+                    "weeks": 0,
+                    "total_score": 0,
+                    "advice": 0,
+                    "decisions": 0,
+                    "framings": 0,
+                }
+            entry = stakeholder_map[name]
+            entry["weeks"] += 1
+            entry["total_score"] += d.delta_score
+            if d.advice_sought:
+                entry["advice"] += 1
+            if d.decision_changed:
+                entry["decisions"] += 1
+            if d.framing_adopted:
+                entry["framings"] += 1
+
+        # Sort by total score descending
+        stakeholder_heatmap = sorted(
+            stakeholder_map.values(),
+            key=lambda x: x["total_score"],
+            reverse=True,
+        )
+        # Add average
+        for s in stakeholder_heatmap:
+            s["avg_score"] = round(s["total_score"] / s["weeks"], 1) if s["weeks"] else 0
+
+        # ── Recommendations ──
+        recommendations = []
+        if framing_count == 0 and len(deltas) >= 3:
+            recommendations.append(
+                "Your framing hasn't been adopted yet. Try naming your frameworks "
+                "and using them consistently in discussions."
+            )
+        if decision_count == 0 and len(deltas) >= 3:
+            recommendations.append(
+                "No decisions changed yet. Focus on presenting data-driven alternatives "
+                "to shift outcomes."
+            )
+        if advice_count == 0 and len(deltas) >= 3:
+            recommendations.append(
+                "You haven't been sought for advice. Increase visibility by sharing insights "
+                "in group settings and volunteering expertise."
+            )
+        unattr = sum(1 for d in deltas if not d.stakeholder_name)
+        if unattr > len(deltas) * 0.5 and len(deltas) >= 3:
+            recommendations.append(
+                f"{unattr}/{len(deltas)} logs are unattributed. "
+                "Tag stakeholders to see who drives your influence."
+            )
+        if current_streak >= 3:
+            recommendations.append(
+                f"You're on a {current_streak}-week high-influence streak! "
+                "Capitalize on this momentum with a visible deliverable."
+            )
+        if trend["direction"] == "down" and len(deltas) >= 4:
+            recommendations.append(
+                "Influence is trending down. Consider scheduling 1:1s with key "
+                "stakeholders or shipping a visible artifact this week."
+            )
+        if trend["direction"] == "up" and len(deltas) >= 4:
+            recommendations.append(
+                "Influence is trending up. Lock in gains by documenting your "
+                "contributions and ensuring leadership sees your work."
+            )
+        if not recommendations:
+            recommendations.append(
+                "Keep logging consistently — more data unlocks deeper trend insights."
+            )
+
+        # ── Peak/valley weeks ──
+        peak_week = max(deltas, key=lambda d: d.delta_score) if deltas else None
+        valley_week = min(deltas, key=lambda d: d.delta_score) if deltas else None
+
+        return {
+            "trend": trend,
+            "streaks": {"current": current_streak, "best": best_streak},
+            "signal_breakdown": signal_breakdown,
+            "stakeholder_heatmap": stakeholder_heatmap,
+            "weeks_logged": len(deltas),
+            "peak_week": {"week": peak_week.week_start, "score": peak_week.delta_score} if peak_week else None,
+            "valley_week": {"week": valley_week.week_start, "score": valley_week.delta_score} if valley_week else None,
+            "recommendations": recommendations,
         }
 
 

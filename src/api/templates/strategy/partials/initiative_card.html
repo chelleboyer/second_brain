@@ -1,70 +1,62 @@
-<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="initiative-{{ initiative.id }}">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; flex-wrap: wrap;">
+<div class="strat-card" id="initiative-{{ initiative.id }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.35rem;flex-wrap:wrap;">
                 {% if initiative.initiative_type.value == 'mandatory' %}
-                <span class="type-chip" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; background: rgba(239,68,68,0.15); color: var(--color-red);">
-                    📌 Mandatory
-                </span>
+                <span class="strat-badge strat-badge--red">📌 Mandatory</span>
                 {% else %}
-                <span class="type-chip" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;
-                    {% if initiative.category.value == 'strategic' %}background: rgba(255,215,0,0.15); color: var(--color-gold);
-                    {% elif initiative.category.value == 'supportive' %}background: rgba(59,130,246,0.15); color: var(--color-blue);
-                    {% else %}background: rgba(107,114,128,0.15); color: var(--text-secondary);{% endif %}">
+                <span class="strat-badge {% if initiative.category.value == 'strategic' %}strat-badge--gold{% elif initiative.category.value == 'supportive' %}strat-badge--blue{% else %}strat-badge--muted{% endif %}">
                     {{ initiative_category_display[initiative.category].emoji }}
                     {{ initiative_category_display[initiative.category].label }}
                 </span>
                 {% endif %}
-                <span class="type-chip" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; background: rgba(128,128,128,0.1);">
+                <span class="strat-badge strat-badge--muted" style="font-size:0.65rem;">
                     {{ visibility_display[initiative.visibility].emoji }}
                     {{ visibility_display[initiative.visibility].label }}
                 </span>
             </div>
             <a href="/strategy/initiative/{{ initiative.id }}"
-               style="font-weight: 600; font-size: 0.95rem; text-decoration: none; color: var(--text-primary);">
+               style="font-weight:600;font-size:0.95rem;text-decoration:none;color:var(--text);">
                 {{ initiative.title }}
             </a>
             {% if initiative.description %}
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0; line-height: 1.4;">
-                {{ initiative.description[:120] }}{% if initiative.description|length > 120 %}...{% endif %}
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0;line-height:1.4;">
+                {{ initiative.description[:120] }}{% if initiative.description|length > 120 %}…{% endif %}
             </p>
             {% endif %}
         </div>
-        <div style="text-align: center; min-width: 50px;">
+        <div style="text-align:center;min-width:48px;">
             {% if initiative.initiative_type.value == 'mandatory' %}
-            <div style="font-size: 1.3rem;">📌</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">must-do</div>
+            <div style="font-size:1.3rem;">📌</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">must-do</div>
             {% else %}
-            <div style="font-size: 1.3rem; font-weight: 700;
-                {% if initiative.scores.total >= 18 %}color: var(--color-gold);
-                {% elif initiative.scores.total >= 12 %}color: var(--color-blue);
-                {% else %}color: var(--text-secondary);{% endif %}">
+            <div style="font-size:1.3rem;font-weight:700;
+                {% if initiative.scores.total >= 18 %}color:var(--gold);
+                {% elif initiative.scores.total >= 12 %}color:var(--accent);
+                {% else %}color:var(--text-muted);{% endif %}">
                 {{ initiative.scores.total }}
             </div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">/25</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">/25</div>
             {% endif %}
         </div>
     </div>
-    <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.7rem; color: var(--text-secondary);">
+    <div class="strat-card__meta">
         <span>Risk: {{ initiative.risk_level }}/5</span>
         {% set lc = link_counts[initiative.id|string] if link_counts is defined and initiative.id|string in link_counts else (link_count if link_count is defined else 0) %}
         {% if lc > 0 %}
         <span>🔗 {{ lc }} link{{ 's' if lc != 1 }}</span>
         {% endif %}
         <span>{{ relative_time(initiative.created_at) }}</span>
-        <button hx-get="/strategy/initiative/{{ initiative.id }}/edit"
-                hx-target="#initiative-{{ initiative.id }}"
-                hx-swap="outerHTML"
-                style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.7rem;padding:0;"
-                title="Edit initiative">
-            ✏️
-        </button>
-        <button hx-delete="/strategy/initiative/{{ initiative.id }}"
-                hx-target="#initiative-{{ initiative.id }}"
-                hx-swap="outerHTML"
-                hx-confirm="Delete this initiative?"
-                style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:0.7rem;padding:0;">
-            🗑️
-        </button>
+        <span style="margin-left:auto;display:flex;gap:0.4rem;">
+            <button hx-get="/strategy/initiative/{{ initiative.id }}/edit"
+                    hx-target="#initiative-{{ initiative.id }}"
+                    hx-swap="outerHTML"
+                    class="strat-card__action" title="Edit initiative">✏️</button>
+            <button hx-delete="/strategy/initiative/{{ initiative.id }}"
+                    hx-target="#initiative-{{ initiative.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete this initiative?"
+                    class="strat-card__action strat-card__action--danger">🗑️</button>
+        </span>
     </div>
 </div>

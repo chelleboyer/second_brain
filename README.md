@@ -113,6 +113,7 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 - **Initiative promotion** — Suggestion engine recommends promoting unlinked project entities into scored initiatives
 - **Factory reset** — One-click nuke of all data (SQLite + Qdrant vectors) from the Strategy dashboard, with confirmation
 - **Strategy dashboard** (`/strategy`) — KPI meters, visibility matrix, simulation runner, influence history, and **Load Examples** button with pre-built datasets (Corporate Engineer or Personal/Solopreneur)
+- **Tile-based sub-pages** — Initiatives, Stakeholders, and Assets each render as card grids with filter chips, category counts, and quick-action buttons; built on a `strat-*` CSS design system
 
 ### Eval Harness
 
@@ -122,10 +123,13 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 ### Slack Commands
 
 ```
-/brain capture <text>    — Capture a thought
-/brain recall <query>    — Semantic recall
-/brain summarize week    — Weekly summary
-/brain prd <thread>      — Generate PRD from thread
+/brain capture <text>           — Capture a thought
+/brain recall <query>           — Semantic recall
+/brain summarize week           — Weekly summary
+/brain prd <thread>             — Generate PRD from thread
+/brain initiative "<title>"     — Create a new strategic initiative
+/brain stakeholder "<name>"     — Add a stakeholder
+/brain asset "<name>"           — Add a strategic asset
 ```
 
 ## Architecture
@@ -174,7 +178,7 @@ All entries include: `id` (UUID), `type` (enum), `title`, `summary`, `raw_conten
 ## Development
 
 ```bash
-pytest                        # Run tests (261 tests)
+pytest                        # Run tests (295 tests)
 pytest -x -q                  # Quick run, stop on first failure
 LOG_LEVEL=DEBUG second-brain  # Debug logging
 ```

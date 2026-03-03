@@ -1,61 +1,54 @@
-<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="stakeholder-{{ stakeholder.id }}">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="flex: 1;">
-            <div style="font-weight: 600; font-size: 0.95rem;">👤 {{ stakeholder.name }}</div>
+<div class="strat-card" id="stakeholder-{{ stakeholder.id }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:0.95rem;">👤 {{ stakeholder.name }}</div>
             {% if stakeholder.role %}
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">{{ stakeholder.role }}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">{{ stakeholder.role }}</div>
             {% endif %}
         </div>
-        <div style="display: flex; gap: 0.3rem;">
+        <span style="display:flex;gap:0.4rem;">
             <button hx-get="/strategy/stakeholder/{{ stakeholder.id }}/edit"
                     hx-target="#stakeholder-{{ stakeholder.id }}"
                     hx-swap="outerHTML"
-                    style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.7rem;padding:0;"
-                    title="Edit stakeholder">
-                ✏️
-            </button>
+                    class="strat-card__action" title="Edit stakeholder">✏️</button>
             <button hx-delete="/strategy/stakeholder/{{ stakeholder.id }}"
                     hx-target="#stakeholder-{{ stakeholder.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Remove this stakeholder?"
-                    style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:0.7rem;padding:0;">
-                🗑️
-            </button>
-        </div>
+                    class="strat-card__action strat-card__action--danger">🗑️</button>
+        </span>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 0.75rem;">
-        <div style="text-align: center;">
-            <div style="font-size: 1.1rem; font-weight: 600;">{{ stakeholder.influence_level }}</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Influence</div>
+    <div class="strat-card__stats">
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val">{{ stakeholder.influence_level }}</div>
+            <div class="strat-card__stat-lbl">Influence</div>
         </div>
-        <div style="text-align: center;">
-            <div style="font-size: 1.1rem; font-weight: 600;
-                {% if stakeholder.alignment_score > 0 %}color: var(--color-green);
-                {% elif stakeholder.alignment_score < 0 %}color: var(--color-red);
-                {% endif %}">
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val"
+                 style="{% if stakeholder.alignment_score > 0 %}color:var(--green);{% elif stakeholder.alignment_score < 0 %}color:var(--red);{% endif %}">
                 {{ '%+d' % stakeholder.alignment_score }}
             </div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Alignment</div>
+            <div class="strat-card__stat-lbl">Alignment</div>
         </div>
-        <div style="text-align: center;">
-            <div style="font-size: 1.1rem; font-weight: 600;">{{ stakeholder.dependency_on_you }}</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Dependency</div>
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val">{{ stakeholder.dependency_on_you }}</div>
+            <div class="strat-card__stat-lbl">Dependency</div>
         </div>
-        <div style="text-align: center;">
-            <div style="font-size: 1.1rem; font-weight: 600;">{{ stakeholder.trust_score }}</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Trust</div>
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val">{{ stakeholder.trust_score }}</div>
+            <div class="strat-card__stat-lbl">Trust</div>
         </div>
     </div>
 
     {% if stakeholder.incentives %}
-    <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+    <div style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);">
         <strong>Incentives:</strong> {{ stakeholder.incentives[:100] }}
     </div>
     {% endif %}
 
     {% if stakeholder.notes %}
-    <div style="margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-secondary);">
+    <div style="margin-top:0.25rem;font-size:0.75rem;color:var(--text-muted);">
         {{ stakeholder.notes[:100] }}
     </div>
     {% endif %}

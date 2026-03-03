@@ -428,13 +428,15 @@ class StrategyRepository:
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO influence_deltas (
-                    id, week_start, advice_sought, decision_changed,
+                    id, week_start, stakeholder_id, stakeholder_name,
+                    advice_sought, decision_changed,
                     framing_adopted, consultation_count, notes,
                     delta_score, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(delta.id), delta.week_start,
+                    delta.stakeholder_id, delta.stakeholder_name,
                     1 if delta.advice_sought else 0,
                     1 if delta.decision_changed else 0,
                     1 if delta.framing_adopted else 0,
@@ -445,7 +447,8 @@ class StrategyRepository:
             )
             await conn.commit()
             log.info("influence_delta_saved", id=str(delta.id),
-                     week=delta.week_start, score=delta.delta_score)
+                     week=delta.week_start, score=delta.delta_score,
+                     stakeholder=delta.stakeholder_name)
         return delta
 
     async def list_influence_deltas(
@@ -479,6 +482,8 @@ class StrategyRepository:
         return InfluenceDelta(
             id=UUID(row["id"]),
             week_start=row["week_start"],
+            stakeholder_id=row["stakeholder_id"] if "stakeholder_id" in row.keys() else None,
+            stakeholder_name=row["stakeholder_name"] if "stakeholder_name" in row.keys() else None,
             advice_sought=bool(row["advice_sought"]),
             decision_changed=bool(row["decision_changed"]),
             framing_adopted=bool(row["framing_adopted"]),

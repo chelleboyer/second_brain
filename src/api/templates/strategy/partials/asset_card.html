@@ -1,38 +1,35 @@
-<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="asset-{{ asset.id }}">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem;">
-                <span class="type-chip" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;
-                    {% if asset.asset_type.value == 'reputation' %}background: rgba(168,85,247,0.15); color: var(--color-purple);
-                    {% else %}background: rgba(16,185,129,0.15); color: var(--color-emerald);{% endif %}">
+<div class="strat-card" id="asset-{{ asset.id }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.3rem;">
+                <span class="strat-badge {% if asset.asset_type.value == 'reputation' %}strat-badge--purple{% else %}strat-badge--teal{% endif %}">
                     {{ asset_category_display[asset.asset_type].emoji }}
                     {{ asset_category_display[asset.asset_type].label }}
                 </span>
-                <span class="type-chip" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; background: rgba(128,128,128,0.1);">
+                <span class="strat-badge strat-badge--muted" style="font-size:0.65rem;">
                     {{ visibility_display[asset.visibility].emoji }}
                     {{ visibility_display[asset.visibility].label }}
                 </span>
             </div>
-            <div style="font-weight: 600; font-size: 0.95rem;">{{ asset.title }}</div>
+            <div style="font-weight:600;font-size:0.95rem;">{{ asset.title }}</div>
             {% if asset.description %}
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0;">
-                {{ asset.description[:120] }}{% if asset.description|length > 120 %}...{% endif %}
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0;">
+                {{ asset.description[:120] }}{% if asset.description|length > 120 %}…{% endif %}
             </p>
             {% endif %}
         </div>
-        <div style="text-align: center; min-width: 50px;">
+        <div style="text-align:center;min-width:48px;">
             {% if asset.asset_type.value == 'reputation' %}
-            <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-purple);">{{ '%.1f' % asset.reputation_score }}</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Rep</div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--purple);">{{ '%.1f' % asset.reputation_score }}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">Rep</div>
             {% else %}
-            <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-emerald);">{{ '%.1f' % asset.optionality_score }}</div>
-            <div style="font-size: 0.65rem; color: var(--text-secondary);">Opt</div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--teal);">{{ '%.1f' % asset.optionality_score }}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">Opt</div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Score Details -->
-    <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem; font-size: 0.7rem; color: var(--text-secondary);">
+    <div class="strat-card__meta">
         {% if asset.asset_type.value == 'reputation' %}
         <span>Reuse: {{ asset.reusability_score }}</span>
         <span>Signal: {{ asset.signaling_strength }}</span>
@@ -44,19 +41,16 @@
         <span>Monetize: {{ asset.monetization_potential }}</span>
         <span>Deploy: {{ asset.time_to_deploy }}</span>
         {% endif %}
-        <button hx-get="/strategy/asset/{{ asset.id }}/edit"
-                hx-target="#asset-{{ asset.id }}"
-                hx-swap="outerHTML"
-                style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.7rem;padding:0;"
-                title="Edit asset">
-            ✏️
-        </button>
-        <button hx-delete="/strategy/asset/{{ asset.id }}"
-                hx-target="#asset-{{ asset.id }}"
-                hx-swap="outerHTML"
-                hx-confirm="Remove this asset?"
-                style="background:none;border:none;color:var(--color-red);cursor:pointer;font-size:0.7rem;padding:0;margin-left:auto;">
-            🗑️
-        </button>
+        <span style="margin-left:auto;display:flex;gap:0.4rem;">
+            <button hx-get="/strategy/asset/{{ asset.id }}/edit"
+                    hx-target="#asset-{{ asset.id }}"
+                    hx-swap="outerHTML"
+                    class="strat-card__action" title="Edit asset">✏️</button>
+            <button hx-delete="/strategy/asset/{{ asset.id }}"
+                    hx-target="#asset-{{ asset.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove this asset?"
+                    class="strat-card__action strat-card__action--danger">🗑️</button>
+        </span>
     </div>
 </div>

@@ -4,106 +4,115 @@
 {% block nav_strategy %}active{% endblock %}
 
 {% block content %}
-<div class="strategy-assets">
-    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <div>
-            <div style="font-size: 0.8rem; margin-bottom: 0.25rem;">
-                <a href="/strategy" style="color: var(--text-secondary); text-decoration: none;">♟️ Strategy</a>
-                <span style="color: var(--text-secondary);"> / </span>
+<div class="strat-dash">
+
+    <!-- Hero -->
+    <header class="strat-hero">
+        <div class="strat-hero__left">
+            <div style="font-size:0.8rem;margin-bottom:0.15rem;">
+                <a href="/strategy" style="color:var(--text-muted);text-decoration:none;">♟️ Strategy</a>
+                <span style="color:var(--text-muted);"> / </span>
                 <span>Assets</span>
             </div>
-            <h1 style="margin: 0;">🏆 Strategic Assets</h1>
+            <h1 class="strat-hero__title">🏆 Strategic Assets</h1>
         </div>
-    </div>
+    </header>
 
-    <!-- Type Tabs -->
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+    <!-- Type Filters -->
+    <div class="strat-chips" style="margin-bottom:var(--sp-5);">
         <a href="/strategy/assets"
-           class="btn {% if not active_type %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">All</a>
+           class="strat-chip {% if not active_type %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">All</a>
         <a href="/strategy/assets?asset_type=reputation"
-           class="btn {% if active_type == 'reputation' %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">🏆 Reputation</a>
+           class="strat-chip {% if active_type == 'reputation' %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">🏆 Reputation</a>
         <a href="/strategy/assets?asset_type=optionality"
-           class="btn {% if active_type == 'optionality' %}btn-primary{% else %}btn-secondary{% endif %}"
-           style="font-size: 0.8rem;">🚪 Optionality</a>
+           class="strat-chip {% if active_type == 'optionality' %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">🚪 Optionality</a>
     </div>
 
-    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <div class="strat-grid strat-grid--2">
+
         <!-- Asset List -->
-        <div id="asset-list">
+        <div id="asset-list" class="strat-list">
             {% for asset in assets %}
                 {% include "strategy/partials/asset_card.html" %}
             {% else %}
-                <div class="card" style="padding: 2rem; text-align: center;">
-                    <p class="text-muted">No strategic assets tracked. Add one using the form.</p>
+                <div class="strat-empty" style="padding:2rem;">
+                    <div style="font-size:1.5rem;opacity:0.3;margin-bottom:0.5rem;">🏆</div>
+                    <p>No strategic assets tracked. Add one using the form or via Slack:<br>
+                    <code style="font-size:0.75rem;color:var(--accent);">/brain asset "Title" description text</code></p>
                 </div>
             {% endfor %}
         </div>
 
         <!-- Create Asset Form -->
-        <div class="card" style="padding: 1.25rem; position: sticky; top: 1rem; align-self: start;">
-            <h3 style="margin: 0 0 1rem;">➕ Track New Asset</h3>
-            <form hx-post="/strategy/assets"
-                  hx-target="#asset-list"
-                  hx-swap="afterbegin"
-                  x-data="{ assetType: 'reputation' }">
+        <div class="strat-tile" style="position:sticky;top:4rem;align-self:start;">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">➕ Track New Asset</h2>
+            </div>
+            <div class="strat-tile__body">
+                <form hx-post="/strategy/assets"
+                      hx-target="#asset-list"
+                      hx-swap="afterbegin"
+                      x-data="{ assetType: 'reputation' }">
 
-                <input type="text" name="title" placeholder="Asset title" required
-                       style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <input type="text" name="title" placeholder="Asset title" required
+                           class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;">
 
-                <textarea name="description" placeholder="Description" rows="2"
-                          style="width:100%;padding:0.5rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
+                    <textarea name="description" placeholder="Description" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
 
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">Type</label>
-                        <select name="asset_type" x-model="assetType"
-                                style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                            <option value="reputation">🏆 Reputation</option>
-                            <option value="optionality">🚪 Optionality</option>
-                        </select>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Type</label>
+                            <select name="asset_type" x-model="assetType"
+                                    class="input" style="width:100%;font-size:0.85rem;">
+                                <option value="reputation">🏆 Reputation</option>
+                                <option value="optionality">🚪 Optionality</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Visibility</label>
+                            <select name="visibility"
+                                    class="input" style="width:100%;font-size:0.85rem;">
+                                {% for v in visibility_levels %}
+                                <option value="{{ v.value }}">{{ visibility_display[v].emoji }} {{ visibility_display[v].label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">Visibility</label>
-                        <select name="visibility"
-                                style="width:100%;padding:0.4rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                            {% for v in visibility_levels %}
-                            <option value="{{ v.value }}">{{ visibility_display[v].emoji }} {{ visibility_display[v].label }}</option>
-                            {% endfor %}
-                        </select>
+
+                    <!-- Reputation Scores -->
+                    <div x-show="assetType === 'reputation'" x-transition style="margin-bottom:0.5rem;">
+                        <div class="strat-section-label">Reputation Scoring (0–10)</div>
+                        {% for field, label in [("reusability_score", "Reusability"), ("signaling_strength", "Signal Strength"), ("market_relevance", "Market Relevance"), ("compounding_potential", "Compounding")] %}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;">
+                            <span style="font-size:0.8rem;">{{ label }}</span>
+                            <input type="number" name="{{ field }}" value="0" min="0" max="10"
+                                   class="input" style="width:48px;text-align:center;font-size:0.85rem;padding:0.25rem;">
+                        </div>
+                        {% endfor %}
                     </div>
-                </div>
 
-                <!-- Reputation Scores -->
-                <div x-show="assetType === 'reputation'" style="margin-bottom: 0.75rem;">
-                    <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 0.4rem;">Reputation Scoring (0-10)</div>
-                    {% for field, label in [("reusability_score", "Reusability"), ("signaling_strength", "Signaling Strength"), ("market_relevance", "Market Relevance"), ("compounding_potential", "Compounding Potential")] %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
-                        <span style="font-size: 0.8rem;">{{ label }}</span>
-                        <input type="number" name="{{ field }}" value="0" min="0" max="10"
-                               style="width:55px;padding:0.3rem;text-align:center;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
+                    <!-- Optionality Scores -->
+                    <div x-show="assetType === 'optionality'" x-transition style="margin-bottom:0.5rem;">
+                        <div class="strat-section-label">Optionality Scoring (0–10)</div>
+                        {% for field, label in [("portability_score", "Portability"), ("market_demand", "Market Demand"), ("monetization_potential", "Monetization"), ("time_to_deploy", "Deploy Speed")] %}
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0;">
+                            <span style="font-size:0.8rem;">{{ label }}</span>
+                            <input type="number" name="{{ field }}" value="0" min="0" max="10"
+                                   class="input" style="width:48px;text-align:center;font-size:0.85rem;padding:0.25rem;">
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
-                </div>
 
-                <!-- Optionality Scores -->
-                <div x-show="assetType === 'optionality'" style="margin-bottom: 0.75rem;">
-                    <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 0.4rem;">Optionality Scoring (0-10)</div>
-                    {% for field, label in [("portability_score", "Portability"), ("market_demand", "Market Demand"), ("monetization_potential", "Monetization Potential"), ("time_to_deploy", "Time to Deploy (lower=faster)")] %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
-                        <span style="font-size: 0.8rem;">{{ label }}</span>
-                        <input type="number" name="{{ field }}" value="0" min="0" max="10"
-                               style="width:55px;padding:0.3rem;text-align:center;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                    </div>
-                    {% endfor %}
-                </div>
+                    <textarea name="notes" placeholder="Notes" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
 
-                <textarea name="notes" placeholder="Notes" rows="2"
-                          style="width:100%;padding:0.5rem;margin-bottom:0.75rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;"></textarea>
-
-                <button type="submit" class="btn btn-primary" style="width:100%;">Track Asset</button>
-            </form>
+                    <button type="submit" class="btn btn-primary" style="width:100%;">Track Asset</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

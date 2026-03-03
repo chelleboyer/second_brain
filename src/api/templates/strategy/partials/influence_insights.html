@@ -1,0 +1,124 @@
+<!-- Influence Insights — Deep Dive Panel (loaded inline or via HTMX drawer) -->
+{% set ins = influence_insights if influence_insights is defined else insights %}
+
+{% if ins.weeks_logged == 0 %}
+<div class="strat-empty" style="padding:1.5rem;">
+    <p>No influence data yet. Start logging weekly interactions to see insights.</p>
+</div>
+{% else %}
+
+<div class="strat-tile" style="margin-top:var(--sp-5);">
+    <div class="strat-tile__head">
+        <h2 class="strat-tile__title">🔬 Deep Influence Insights</h2>
+        <div style="display:flex;gap:0.75rem;font-size:0.8rem;">
+            <span>{{ ins.weeks_logged }} weeks</span>
+            <span>🔥 {{ ins.streaks.current }} streak</span>
+            <span>🏆 {{ ins.streaks.best }} best</span>
+        </div>
+    </div>
+    <div class="strat-tile__body">
+
+        <!-- Sparkline Bar Chart -->
+        <div style="margin-bottom:1.25rem;">
+            <div class="strat-section-label">📊 Weekly Score Trend</div>
+            <div style="display:flex;align-items:flex-end;gap:3px;height:48px;">
+                {% for score in ins.trend.recent_scores | reverse %}
+                <div style="flex:1;min-width:10px;border-radius:3px 3px 0 0;
+                    height:{{ (score / 10 * 100) | int }}%;min-height:3px;
+                    {% if score >= 7 %}background:var(--green);
+                    {% elif score >= 4 %}background:var(--accent);
+                    {% elif score >= 1 %}background:var(--gold);
+                    {% else %}background:var(--border);{% endif %}"
+                    title="+{{ score }}"></div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <!-- Signal Breakdown -->
+            <div>
+                <div class="strat-section-label">🎯 Signal Breakdown</div>
+                {% set sb = ins.signal_breakdown %}
+                <div style="font-size:0.8rem;">
+                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <span>💬 Advice sought</span>
+                        <span><strong>{{ sb.advice_sought }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.advice_pct }}%)</span></span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <span>⚖️ Decision changed</span>
+                        <span><strong>{{ sb.decision_changed }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.decision_pct }}%)</span></span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <span>🧠 Framing adopted</span>
+                        <span><strong>{{ sb.framing_adopted }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.framing_pct }}%)</span></span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;">
+                        <span>🤝 Total consultations</span>
+                        <span><strong>{{ sb.total_consultations }}</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Peak & Valley -->
+            <div>
+                <div class="strat-section-label">📈 Extremes</div>
+                {% if ins.peak_week and ins.valley_week %}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                    <div style="padding:0.5rem;background:rgba(52,211,153,0.08);border-radius:var(--radius-md);text-align:center;">
+                        <div style="font-size:0.65rem;color:var(--text-muted);">🏔️ Peak</div>
+                        <div style="font-weight:700;color:var(--green);font-size:1.1rem;">+{{ ins.peak_week.score }}</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">{{ ins.peak_week.week }}</div>
+                    </div>
+                    <div style="padding:0.5rem;background:rgba(248,113,113,0.08);border-radius:var(--radius-md);text-align:center;">
+                        <div style="font-size:0.65rem;color:var(--text-muted);">🏜️ Valley</div>
+                        <div style="font-weight:700;color:var(--red);font-size:1.1rem;">+{{ ins.valley_week.score }}</div>
+                        <div style="font-size:0.7rem;color:var(--text-muted);">{{ ins.valley_week.week }}</div>
+                    </div>
+                </div>
+                {% else %}
+                <p style="font-size:0.8rem;color:var(--text-muted);">Need more data for peak/valley analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Stakeholder Heatmap -->
+        {% if ins.stakeholder_heatmap %}
+        <div style="margin-top:1rem;">
+            <div class="strat-section-label">👥 Stakeholder Influence Heatmap</div>
+            {% for s in ins.stakeholder_heatmap %}
+            <div class="strat-sh-row" style="border-bottom:1px solid var(--border);padding:0.35rem 0;">
+                <span class="strat-sh-row__name">{{ s.name }}</span>
+                <div class="strat-sh-row__bar-wrap">
+                    <div class="strat-sh-row__bar"
+                         style="width:{{ (s.avg_score / 10 * 100) | int }}%;
+                         {% if s.avg_score >= 5 %}background:var(--green);
+                         {% elif s.avg_score >= 3 %}background:var(--accent);
+                         {% else %}background:var(--text-muted);{% endif %}"></div>
+                </div>
+                <span class="strat-sh-row__score">{{ s.avg_score }}</span>
+                <span class="strat-sh-row__weeks">{{ s.weeks }}w</span>
+                <span style="display:flex;gap:0.25rem;">
+                    {% if s.advice > 0 %}<span style="font-size:0.6rem;padding:0.05rem 0.2rem;background:rgba(79,142,247,0.12);border-radius:3px;">💬{{ s.advice }}</span>{% endif %}
+                    {% if s.decisions > 0 %}<span style="font-size:0.6rem;padding:0.05rem 0.2rem;background:rgba(52,211,153,0.12);border-radius:3px;">⚖️{{ s.decisions }}</span>{% endif %}
+                    {% if s.framings > 0 %}<span style="font-size:0.6rem;padding:0.05rem 0.2rem;background:rgba(167,139,250,0.12);border-radius:3px;">🧠{{ s.framings }}</span>{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Recommendations (if not already shown on dashboard) -->
+        {% if ins.recommendations %}
+        <div style="margin-top:1rem;">
+            <div class="strat-section-label">💡 All Recommendations</div>
+            {% for rec in ins.recommendations %}
+            <div class="strat-rec">{{ rec }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+{% endif %}
+

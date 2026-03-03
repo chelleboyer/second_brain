@@ -4,226 +4,383 @@
 {% block nav_strategy %}active{% endblock %}
 
 {% block content %}
-<div class="strategy-dashboard">
-    <!-- Header -->
-    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <div>
-            <h1 style="margin: 0;">♟️ Strategic Positioning</h1>
-            <p class="text-muted" style="margin: 0.25rem 0 0;">Reputation &amp; Optionality Engine</p>
+<div class="strat-dash">
+
+    <!-- ── Hero Bar ─────────────────────────────────────────── -->
+    <header class="strat-hero">
+        <div class="strat-hero__left">
+            <h1 class="strat-hero__title">♟️ Strategic Positioning</h1>
+            <p class="strat-hero__sub">
+                {% if influence_trend.direction == 'up' %}
+                    Influence trending <strong style="color:var(--green);">up</strong> — keep building momentum.
+                {% elif influence_trend.direction == 'down' %}
+                    Influence trending <strong style="color:var(--red);">down</strong> — time to re-engage.
+                {% else %}
+                    Influence is <strong>steady</strong> — look for breakout opportunities.
+                {% endif %}
+            </p>
         </div>
-        <div style="display:flex;gap:0.5rem;align-items:center;">
-            <a href="/strategy/initiatives" class="btn btn-secondary">📋 Initiatives</a>
-            <a href="/strategy/stakeholders" class="btn btn-secondary">👥 Stakeholders</a>
-            <a href="/strategy/assets" class="btn btn-secondary">🏆 Assets</a>
-
-            <!-- Load Examples -->
+        <nav class="strat-hero__nav">
+            <a href="/strategy/initiatives" class="btn btn-secondary btn-sm">📋 Initiatives</a>
+            <a href="/strategy/stakeholders" class="btn btn-secondary btn-sm">👥 Stakeholders</a>
+            <a href="/strategy/assets" class="btn btn-secondary btn-sm">🏆 Assets</a>
+            <!-- Gear Menu -->
             <div x-data="{ open: false }" style="position:relative;">
-                <button @click="open = !open" class="btn btn-secondary" style="font-size:0.8rem;">
-                    📦 Load Examples ▾
-                </button>
+                <button @click="open = !open" class="btn btn-ghost btn-sm" title="Settings">⚙️</button>
                 <div x-show="open" @click.outside="open = false" x-transition
-                     style="position:absolute;right:0;top:100%;margin-top:0.4rem;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;z-index:50;min-width:280px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                    <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem;">Load Example Dataset</div>
-                    <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 0.75rem;">
-                        Replaces all strategy data with a pre-built example set.
-                    </p>
-
-                    <!-- Factory Reset -->
-                    <div style="border-top:1px solid var(--border-color);margin-top:0.75rem;padding-top:0.75rem;">
-                        <div style="font-weight:600;font-size:0.85rem;color:var(--color-red);margin-bottom:0.25rem;">⚠️ Factory Reset</div>
-                        <p style="font-size:0.7rem;color:var(--text-secondary);margin:0 0 0.5rem;">
-                            Delete ALL data — entries, entities, strategy, vectors. Cannot be undone.
-                        </p>
-                        <button class="btn" style="font-size:0.8rem;background:rgba(239,68,68,0.15);color:var(--color-red);border:1px solid var(--color-red);width:100%;"
-                                hx-post="/admin/reset"
-                                hx-target="#reset-result"
-                                hx-swap="innerHTML"
-                                hx-confirm="⚠️ This will DELETE ALL DATA — entries, entities, strategy objects, and vectors. This cannot be undone. Are you absolutely sure?">
-                            🗑️ Nuke Everything
-                        </button>
-                        <div id="reset-result" style="margin-top:0.5rem;"></div>
-                    </div>
+                     class="strat-gear-dropdown">
+                    <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem;">📦 Load Example Dataset</div>
                     <form hx-post="/strategy/load-examples"
-                          hx-target="#example-load-result"
+                          hx-target="#gear-result"
                           hx-swap="innerHTML"
-                          style="display:flex;flex-direction:column;gap:0.5rem;">
-                        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);">
+                          style="display:flex;flex-direction:column;gap:0.4rem;">
+                        <label class="strat-radio-label">
                             <input type="radio" name="dataset" value="personal" checked>
-                            <div>
-                                <div style="font-weight:600;">🧠 Personal / Solopreneur</div>
-                                <div style="font-size:0.7rem;color:var(--text-secondary);">Freelancer building audience &amp; consulting revenue</div>
-                            </div>
+                            <span><strong>🧠 Personal</strong><br><small class="text-muted">Freelancer / Solopreneur</small></span>
                         </label>
-                        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);">
+                        <label class="strat-radio-label">
                             <input type="radio" name="dataset" value="corporate">
-                            <div>
-                                <div style="font-weight:600;">🏢 Corporate Engineer</div>
-                                <div style="font-size:0.7rem;color:var(--text-secondary);">Senior engineer navigating corporate influence</div>
-                            </div>
+                            <span><strong>🏢 Corporate</strong><br><small class="text-muted">Engineer navigating org</small></span>
                         </label>
-                        <button type="submit" class="btn btn-primary" style="font-size:0.8rem;margin-top:0.25rem;"
+                        <button type="submit" class="btn btn-primary btn-sm" style="width:100%;margin-top:0.25rem;"
                                 hx-confirm="This will replace all existing strategy data. Continue?">
                             Load Dataset
                         </button>
                     </form>
-                    <div id="example-load-result" style="margin-top:0.5rem;"></div>
+                    <div id="gear-result" style="margin-top:0.4rem;"></div>
+                    <div style="border-top:1px solid var(--border);margin-top:0.6rem;padding-top:0.6rem;">
+                        <button class="btn btn-sm" style="width:100%;background:rgba(248,113,113,0.1);color:var(--red);border:1px solid rgba(248,113,113,0.3);"
+                                hx-post="/admin/reset"
+                                hx-target="#gear-result"
+                                hx-swap="innerHTML"
+                                hx-confirm="⚠️ DELETE ALL DATA — entries, entities, strategy, vectors. Cannot be undone.">
+                            🗑️ Factory Reset
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </nav>
+    </header>
 
-    <!-- KPI Meters -->
-    <div class="panel-grid" style="grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-        <!-- Influence Meter -->
-        <div class="card" style="text-align: center; padding: 1.25rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.25rem;">
+    <!-- ── Summary Stat Chips ───────────────────────────────── -->
+    <div class="strat-chips">
+        <div class="strat-chip">
+            <span class="strat-chip__icon">
                 {% if influence_trend.direction == 'up' %}📈{% elif influence_trend.direction == 'down' %}📉{% else %}➡️{% endif %}
-            </div>
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ influence_trend.average }}</div>
-            <div class="text-muted" style="font-size: 0.8rem;">Influence Score</div>
-            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
-                Trend: <strong>{{ influence_trend.direction }}</strong>
-            </div>
+            </span>
+            <span class="strat-chip__val">{{ influence_trend.average }}</span>
+            <span class="strat-chip__label">Influence</span>
         </div>
-
-        <!-- Strategic Initiatives -->
-        <div class="card" style="text-align: center; padding: 1.25rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.25rem;">♟️</div>
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ summary.initiative_counts.get('strategic', 0) }}</div>
-            <div class="text-muted" style="font-size: 0.8rem;">Strategic Moves</div>
-            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
-                {{ summary.initiative_counts.get('supportive', 0) }} supportive,
-                {{ summary.initiative_counts.get('maintenance', 0) }} maintenance
-            </div>
+        <div class="strat-chip">
+            <span class="strat-chip__icon">♟️</span>
+            <span class="strat-chip__val">{{ summary.initiative_counts.get('strategic', 0) }}</span>
+            <span class="strat-chip__label">Strategic</span>
         </div>
-
-        <!-- Stakeholders -->
-        <div class="card" style="text-align: center; padding: 1.25rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.25rem;">👥</div>
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ summary.stakeholder_count }}</div>
-            <div class="text-muted" style="font-size: 0.8rem;">Stakeholders</div>
+        <div class="strat-chip">
+            <span class="strat-chip__icon">👥</span>
+            <span class="strat-chip__val">{{ summary.stakeholder_count }}</span>
+            <span class="strat-chip__label">Stakeholders</span>
         </div>
-
-        <!-- Assets -->
-        <div class="card" style="text-align: center; padding: 1.25rem;">
-            <div style="font-size: 2rem; margin-bottom: 0.25rem;">🏆</div>
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ (summary.asset_counts.get('reputation', 0) + summary.asset_counts.get('optionality', 0)) }}</div>
-            <div class="text-muted" style="font-size: 0.8rem;">Strategic Assets</div>
-            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
-                {{ summary.asset_counts.get('reputation', 0) }} rep,
-                {{ summary.asset_counts.get('optionality', 0) }} opt
-            </div>
+        <div class="strat-chip">
+            <span class="strat-chip__icon">🏆</span>
+            <span class="strat-chip__val">{{ (summary.asset_counts.get('reputation', 0) + summary.asset_counts.get('optionality', 0)) }}</span>
+            <span class="strat-chip__label">Assets</span>
+        </div>
+        <div class="strat-chip">
+            <span class="strat-chip__icon">🔭</span>
+            <span class="strat-chip__val">{{ summary.visibility_distribution.get('market', 0) + summary.visibility_distribution.get('executive', 0) }}</span>
+            <span class="strat-chip__label">Visible</span>
         </div>
     </div>
 
-    <!-- Main Grid: Simulation + Influence -->
-    <div class="panel-grid" style="grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+    <!-- ── Row 1: Action Tiles ──────────────────────────────── -->
+    <div class="strat-grid strat-grid--3">
 
-        <!-- Weekly Simulation Panel -->
-        <div class="card" style="padding: 1.25rem;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-                <h3 style="margin:0;">🎯 Weekly Simulation</h3>
+        <!-- TILE: This Week's Move -->
+        <div class="strat-tile">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">🎯 This Week's Move</h2>
                 <form hx-post="/strategy/simulate"
-                      hx-target="#simulation-output"
+                      hx-target="#sim-body"
                       hx-swap="innerHTML"
                       style="margin:0;">
-                    <button type="submit" class="btn btn-primary" style="font-size:0.8rem;">
-                        ▶ Run Simulation
-                    </button>
+                    <button type="submit" class="btn btn-primary btn-sm">▶ Run</button>
                 </form>
             </div>
-            <div id="simulation-output">
+            <div id="sim-body" class="strat-tile__body">
                 {% if latest_simulation %}
                     {% include "strategy/partials/simulation_result.html" with context %}
                 {% else %}
-                    <p class="text-muted">No simulation run yet. Click "Run Simulation" to generate your weekly strategic move.</p>
+                    <div class="strat-empty">
+                        <div style="font-size:1.8rem;opacity:0.3;margin-bottom:0.5rem;">🎯</div>
+                        <p>Run a simulation to get your strategic move for the week.</p>
+                    </div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Influence Tracking Panel -->
-        <div class="card" style="padding: 1.25rem;">
-            <h3 style="margin: 0 0 1rem;">📊 Influence Tracking</h3>
-
-            <!-- Influence Log Form -->
-            <form hx-post="/strategy/influence"
-                  hx-target="#influence-log"
-                  hx-swap="afterbegin"
-                  style="margin-bottom: 1rem;">
-                <input type="date" name="week_start" required
-                       style="width:100%;padding:0.4rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                <div style="display:flex;flex-direction:column;gap:0.4rem;margin-bottom:0.5rem;">
-                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
-                        <input type="checkbox" name="advice_sought" value="true"> Advice sought
-                    </label>
-                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
-                        <input type="checkbox" name="decision_changed" value="true"> Decision changed
-                    </label>
-                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;">
-                        <input type="checkbox" name="framing_adopted" value="true"> Framing adopted
-                    </label>
+        <!-- TILE: Influence Pulse -->
+        <div class="strat-tile">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">📊 Influence Pulse</h2>
+            </div>
+            <div class="strat-tile__body">
+                <!-- Score + Trend -->
+                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+                    <div style="font-size:2rem;font-weight:800;letter-spacing:-0.02em;
+                        {% if influence_trend.direction == 'up' %}color:var(--green);
+                        {% elif influence_trend.direction == 'down' %}color:var(--red);
+                        {% else %}color:var(--text);{% endif %}">
+                        {{ influence_trend.average }}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:0.8rem;font-weight:600;">
+                            {% if influence_trend.direction == 'up' %}📈 Trending Up
+                            {% elif influence_trend.direction == 'down' %}📉 Trending Down
+                            {% else %}➡️ Holding Steady{% endif %}
+                        </div>
+                        <!-- Sparkline -->
+                        {% if influence_trend.recent_scores %}
+                        <div style="display:flex;align-items:flex-end;gap:2px;height:28px;margin-top:0.35rem;">
+                            {% for score in influence_trend.recent_scores | reverse %}
+                            <div class="strat-bar"
+                                 style="height:{{ (score / 10 * 100) | int }}%;
+                                 {% if score >= 7 %}background:var(--green);
+                                 {% elif score >= 4 %}background:var(--accent);
+                                 {% elif score >= 1 %}background:var(--gold);
+                                 {% else %}background:var(--border);{% endif %}"
+                                 title="+{{ score }}"></div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
-                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
-                    <label style="font-size:0.8rem;white-space:nowrap;">Consultations:</label>
-                    <input type="number" name="consultation_count" value="0" min="0" max="20"
-                           style="width:60px;padding:0.3rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;">
-                </div>
-                <textarea name="notes" placeholder="Notes..." rows="2"
-                          style="width:100%;padding:0.4rem;margin-bottom:0.5rem;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px;resize:vertical;font-size:0.8rem;"></textarea>
-                <button type="submit" class="btn btn-primary" style="width:100%;font-size:0.8rem;">Log Week</button>
-            </form>
 
-            <!-- Influence History -->
-            <div id="influence-log" style="max-height:300px;overflow-y:auto;">
-                {% for delta in influence_deltas %}
-                    {% include "strategy/partials/influence_row.html" %}
-                {% endfor %}
+                <!-- Scoring Explained -->
+                <div class="strat-explainer">
+                    <div class="strat-explainer__title">How Scoring Works</div>
+                    <div class="strat-explainer__row">
+                        <span>💬 Advice sought</span><span class="strat-explainer__pts">+2</span>
+                    </div>
+                    <div class="strat-explainer__row">
+                        <span>⚖️ Decision changed</span><span class="strat-explainer__pts">+3</span>
+                    </div>
+                    <div class="strat-explainer__row">
+                        <span>🧠 Framing adopted</span><span class="strat-explainer__pts">+3</span>
+                    </div>
+                    <div class="strat-explainer__row">
+                        <span>🤝 Consultations</span><span class="strat-explainer__pts">≤ +4</span>
+                    </div>
+                    <div class="strat-explainer__row strat-explainer__row--cap">
+                        <span>Weekly cap</span><span class="strat-explainer__pts">10</span>
+                    </div>
+                </div>
+
+                {% if influence_insights and influence_insights.weeks_logged > 0 %}
+                <div style="margin-top:0.75rem;">
+                    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;"
+                            hx-get="/strategy/influence-insights"
+                            hx-target="#insights-drawer"
+                            hx-swap="innerHTML">
+                        See Deep Insights →
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- TILE: Top Initiative -->
+        <div class="strat-tile">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">♟️ Top Initiative</h2>
+                <a href="/strategy/initiatives" class="btn btn-ghost btn-sm">View All →</a>
+            </div>
+            <div class="strat-tile__body">
+                {% if initiatives %}
+                {% set top = initiatives[0] %}
+                <a href="/strategy/initiative/{{ top.id }}" style="text-decoration:none;color:var(--text);display:block;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.6rem;">
+                        <div>
+                            <span class="type-chip type-chip-{{ top.category.value }}" style="font-size:0.65rem;padding:0.1rem 0.35rem;">
+                                {{ initiative_category_display[top.category].emoji }}
+                                {{ initiative_category_display[top.category].label | upper }}
+                            </span>
+                        </div>
+                        <div style="font-size:1.2rem;font-weight:800;color:var(--accent);">{{ top.scores.total }}<span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);">/25</span></div>
+                    </div>
+                    <div style="font-weight:600;font-size:0.95rem;margin-bottom:0.4rem;">{{ top.title }}</div>
+                    {% if top.notes %}
+                    <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.4;">{{ top.notes[:120] }}{% if top.notes|length > 120 %}…{% endif %}</div>
+                    {% endif %}
+                </a>
+
+                {% if initiatives|length > 1 %}
+                <div style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.6rem;">
+                    {% for init in initiatives[1:4] %}
+                    <a href="/strategy/initiative/{{ init.id }}" class="strat-mini-init">
+                        <span>{{ init.title }}</span>
+                        <span style="font-weight:600;font-size:0.8rem;">{{ init.scores.total }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="strat-empty">
+                    <p>No initiatives yet. <a href="/strategy/initiatives">Create one</a>.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 
-    <!-- Bottom Grid: Visibility Matrix + Top Initiatives -->
-    <div class="panel-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- ── Row 2: Log + Insights ────────────────────────────── -->
+    <div class="strat-grid strat-grid--2">
 
-        <!-- Visibility Distribution -->
-        <div class="card" style="padding: 1.25rem;">
-            <h3 style="margin: 0 0 1rem;">🔭 Visibility Matrix</h3>
-            {% for vis, count in summary.visibility_distribution.items() %}
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
-                <span>
-                    {{ visibility_display[vis].emoji if vis in visibility_display else '❓' }}
-                    {{ visibility_display[vis].label if vis in visibility_display else vis }}
-                </span>
-                <span style="font-weight: 600;">{{ count }}</span>
+        <!-- TILE: Log Influence -->
+        <div class="strat-tile">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">📝 Log This Week</h2>
             </div>
-            {% else %}
-            <p class="text-muted">No initiatives tracked yet.</p>
-            {% endfor %}
-            <div style="margin-top: 0.75rem;">
-                <small class="text-muted">Goal: Increase Executive + Market visibility.</small>
+            <div class="strat-tile__body">
+                <form hx-post="/strategy/influence"
+                      hx-target="#influence-timeline"
+                      hx-swap="afterbegin"
+                      class="strat-log-form">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.6rem;">
+                        <input type="date" name="week_start" required class="input" style="font-size:0.85rem;">
+                        <select name="stakeholder_id" class="input" style="font-size:0.85rem;">
+                            <option value="">— Stakeholder —</option>
+                            {% for s in stakeholders %}
+                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="strat-signal-row">
+                        <label class="strat-signal-check">
+                            <input type="checkbox" name="advice_sought" value="true">
+                            <span>💬 Advice</span>
+                        </label>
+                        <label class="strat-signal-check">
+                            <input type="checkbox" name="decision_changed" value="true">
+                            <span>⚖️ Decision</span>
+                        </label>
+                        <label class="strat-signal-check">
+                            <input type="checkbox" name="framing_adopted" value="true">
+                            <span>🧠 Framing</span>
+                        </label>
+                        <div style="display:flex;align-items:center;gap:0.35rem;">
+                            <span style="font-size:0.8rem;">🤝</span>
+                            <input type="number" name="consultation_count" value="0" min="0" max="20"
+                                   class="input" style="width:48px;text-align:center;font-size:0.85rem;padding:0.25rem;">
+                        </div>
+                    </div>
+
+                    <textarea name="notes" placeholder="What happened this week..." rows="2"
+                              class="input" style="font-size:0.85rem;resize:vertical;margin-top:0.5rem;"></textarea>
+                    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Log Week</button>
+                </form>
             </div>
         </div>
 
-        <!-- Top Initiatives -->
-        <div class="card" style="padding: 1.25rem;">
-            <h3 style="margin: 0 0 1rem;">🏁 Active Initiatives</h3>
-            {% for init in initiatives[:5] %}
-            <a href="/strategy/initiative/{{ init.id }}"
-               style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); text-decoration: none; color: var(--text-primary);">
-                <div>
-                    <span class="type-chip type-chip-{{ init.category.value }}"
-                          style="font-size: 0.7rem; padding: 0.15rem 0.4rem;">
-                        {{ initiative_category_display[init.category].emoji }}
-                        {{ initiative_category_display[init.category].label }}
-                    </span>
-                    <span style="margin-left: 0.4rem;">{{ init.title }}</span>
-                </div>
-                <span style="font-weight: 600; font-size: 0.85rem;">{{ init.scores.total }}/25</span>
-            </a>
-            {% else %}
-            <p class="text-muted">No active initiatives. <a href="/strategy/initiatives">Create one</a>.</p>
-            {% endfor %}
+        <!-- TILE: Stakeholders + Recommendations -->
+        <div class="strat-tile">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">💡 Insights & Advice</h2>
+            </div>
+            <div class="strat-tile__body">
+                {% if influence_insights and influence_insights.weeks_logged > 0 %}
+                    {% set ins = influence_insights %}
+
+                    <!-- Stakeholder Engagement -->
+                    {% if ins.stakeholder_heatmap %}
+                    <div style="margin-bottom:1rem;">
+                        <div class="strat-section-label">Stakeholder Engagement</div>
+                        {% for s in ins.stakeholder_heatmap[:4] %}
+                        <div class="strat-sh-row">
+                            <span class="strat-sh-row__name">{{ s.name }}</span>
+                            <div class="strat-sh-row__bar-wrap">
+                                <div class="strat-sh-row__bar"
+                                     style="width:{{ (s.avg_score / 10 * 100) | int }}%;
+                                     {% if s.avg_score >= 5 %}background:var(--green);
+                                     {% elif s.avg_score >= 3 %}background:var(--accent);
+                                     {% else %}background:var(--text-muted);{% endif %}">
+                                </div>
+                            </div>
+                            <span class="strat-sh-row__score">{{ s.avg_score }}</span>
+                            <span class="strat-sh-row__weeks">{{ s.weeks }}w</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Signal Breakdown mini -->
+                    {% set sb = ins.signal_breakdown %}
+                    <div style="margin-bottom:1rem;">
+                        <div class="strat-section-label">Signal Mix</div>
+                        <div class="strat-signal-mix">
+                            <div class="strat-signal-mix__item" title="Advice sought {{ sb.advice_pct }}%">
+                                <div class="strat-signal-mix__bar" style="width:{{ sb.advice_pct }}%;background:var(--accent);"></div>
+                                <span>💬 {{ sb.advice_pct }}%</span>
+                            </div>
+                            <div class="strat-signal-mix__item" title="Decision changed {{ sb.decision_pct }}%">
+                                <div class="strat-signal-mix__bar" style="width:{{ sb.decision_pct }}%;background:var(--green);"></div>
+                                <span>⚖️ {{ sb.decision_pct }}%</span>
+                            </div>
+                            <div class="strat-signal-mix__item" title="Framing adopted {{ sb.framing_pct }}%">
+                                <div class="strat-signal-mix__bar" style="width:{{ sb.framing_pct }}%;background:var(--purple);"></div>
+                                <span>🧠 {{ sb.framing_pct }}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendations -->
+                    {% if ins.recommendations %}
+                    <div>
+                        <div class="strat-section-label">Recommendations</div>
+                        {% for rec in ins.recommendations %}
+                        <div class="strat-rec">{{ rec }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="strat-empty">
+                        <p>Log a few weeks of influence to see stakeholder engagement, signal mix, and personalized advice.</p>
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
+
+    <!-- ── Influence Timeline ───────────────────────────────── -->
+    <div class="strat-tile strat-tile--full">
+        <div class="strat-tile__head">
+            <h2 class="strat-tile__title">📈 Influence History</h2>
+            {% if influence_insights and influence_insights.weeks_logged > 0 %}
+            <div style="display:flex;gap:0.75rem;align-items:center;font-size:0.8rem;">
+                {% if influence_insights.streaks.current > 0 %}
+                <span title="Consecutive weeks scoring ≥5">🔥 {{ influence_insights.streaks.current }} week streak</span>
+                {% endif %}
+                {% if influence_insights.peak_week %}
+                <span style="color:var(--green);" title="Best week: {{ influence_insights.peak_week.week }}">🏔️ Peak +{{ influence_insights.peak_week.score }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        <div id="influence-timeline" class="strat-timeline">
+            {% for delta in influence_deltas %}
+                {% include "strategy/partials/influence_row.html" %}
+            {% endfor %}
+            {% if not influence_deltas %}
+            <div class="strat-empty" style="padding:1.5rem;">
+                <p>No influence logged yet. Use the form above to track your weekly interactions.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Deep Insights Drawer (populated by HTMX) ─────────── -->
+    <div id="insights-drawer"></div>
+
 </div>
 {% endblock %}

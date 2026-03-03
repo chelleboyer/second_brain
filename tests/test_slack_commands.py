@@ -205,3 +205,147 @@ class TestSlackCommandHandler:
         result = await handler.handle("capture some text")
         assert "went wrong" in result["text"].lower() or "Something" in result["text"]
         assert result["response_type"] == "ephemeral"
+
+    # ── Strategy command tests ────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_initiative_no_text(self):
+        handler = self._make_handler(evaluation_engine=MagicMock())
+        result = await handler.handle("initiative")
+        assert "Usage" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_initiative_no_engine(self):
+        handler = self._make_handler(evaluation_engine=None)
+        result = await handler.handle('initiative "Test"')
+        assert "not available" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_initiative_success(self):
+        from src.models.strategy import Initiative, InitiativeScores
+        from src.models.enums import InitiativeCategory, InitiativeType, VisibilityLevel
+
+        initiative = Initiative(
+            title="API Redesign",
+            description="Rebuild the public API",
+            initiative_type=InitiativeType.SCORED,
+            scores=InitiativeScores(),
+            category=InitiativeCategory.MAINTENANCE,
+            visibility=VisibilityLevel.HIDDEN,
+        )
+        engine = MagicMock()
+        engine.evaluate_initiative = AsyncMock(return_value=initiative)
+
+        handler = self._make_handler(evaluation_engine=engine)
+        result = await handler.handle('initiative "API Redesign" Rebuild the public API')
+        assert result["response_type"] == "in_channel"
+        assert "API Redesign" in result["text"]
+        assert "Initiative created" in result["text"]
+        engine.evaluate_initiative.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initiative_unquoted_title(self):
+        from src.models.strategy import Initiative, InitiativeScores
+        from src.models.enums import InitiativeCategory, InitiativeType, VisibilityLevel
+
+        initiative = Initiative(
+            title="Refactor",
+            scores=InitiativeScores(),
+            category=InitiativeCategory.MAINTENANCE,
+            visibility=VisibilityLevel.HIDDEN,
+        )
+        engine = MagicMock()
+        engine.evaluate_initiative = AsyncMock(return_value=initiative)
+
+        handler = self._make_handler(evaluation_engine=engine)
+        result = await handler.handle("initiative Refactor the codebase")
+        assert "Refactor" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_stakeholder_no_text(self):
+        handler = self._make_handler(strategy_repo=MagicMock())
+        result = await handler.handle("stakeholder")
+        assert "Usage" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_stakeholder_no_repo(self):
+        handler = self._make_handler(strategy_repo=None)
+        result = await handler.handle('stakeholder "Alice"')
+        assert "not available" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_stakeholder_success(self):
+        repo = MagicMock()
+        repo.save_stakeholder = AsyncMock()
+
+        handler = self._make_handler(strategy_repo=repo)
+        result = await handler.handle('stakeholder "Alice Chen" Engineering Manager')
+        assert result["response_type"] == "in_channel"
+        assert "Alice Chen" in result["text"]
+        assert "Stakeholder tracked" in result["text"]
+        assert "Engineering Manager" in result["text"]
+        repo.save_stakeholder.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stakeholder_no_role(self):
+        repo = MagicMock()
+        repo.save_stakeholder = AsyncMock()
+
+        handler = self._make_handler(strategy_repo=repo)
+        result = await handler.handle('stakeholder "Bob"')
+        assert "Bob" in result["text"]
+        repo.save_stakeholder.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_asset_no_text(self):
+        handler = self._make_handler(strategy_repo=MagicMock())
+        result = await handler.handle("asset")
+        assert "Usage" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_asset_no_repo(self):
+        handler = self._make_handler(strategy_repo=None)
+        result = await handler.handle('asset "Blog"')
+        assert "not available" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_asset_reputation(self):
+        repo = MagicMock()
+        repo.save_asset = AsyncMock()
+
+        handler = self._make_handler(strategy_repo=repo)
+        result = await handler.handle('asset "OSS Project" reputation Key open source work')
+        assert result["response_type"] == "in_channel"
+        assert "OSS Project" in result["text"]
+        assert "Reputation" in result["text"]
+        repo.save_asset.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_asset_optionality(self):
+        repo = MagicMock()
+        repo.save_asset = AsyncMock()
+
+        handler = self._make_handler(strategy_repo=repo)
+        result = await handler.handle('asset "Cloud Cert" optionality AWS certification')
+        assert "Cloud Cert" in result["text"]
+        assert "Optionality" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_asset_default_type(self):
+        """Asset without explicit type defaults to reputation."""
+        repo = MagicMock()
+        repo.save_asset = AsyncMock()
+
+        handler = self._make_handler(strategy_repo=repo)
+        result = await handler.handle('asset "Blog" Great technical content')
+        assert "Blog" in result["text"]
+        assert "Reputation" in result["text"]
+
+    @pytest.mark.asyncio
+    async def test_help_includes_strategy_commands(self):
+        handler = self._make_handler()
+        result = await handler.handle("help")
+        assert "initiative" in result["text"]
+        assert "stakeholder" in result["text"]
+        assert "asset" in result["text"]
+        assert "Strategy" in result["text"]
