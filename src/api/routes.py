@@ -1023,6 +1023,93 @@ async def api_entities(
     ])
 
 
+# ── Entity Edit / Delete ────────────────────────────────────────
+
+@router.get("/entity/{entity_id}/edit", response_class=HTMLResponse)
+async def edit_entity_form(request: Request, entity_id: str) -> HTMLResponse:
+    """Return the inline edit form for an entity."""
+    entity = await app_state.entity_repo.get_entity_by_id(UUID(entity_id))
+    if not entity:
+        return HTMLResponse("<p>Entity not found</p>", status_code=404)
+
+    return templates.TemplateResponse(
+        "partials/entity_edit.html",
+        _shared_ctx(request, entity=entity),
+    )
+
+
+@router.put("/entity/{entity_id}", response_class=HTMLResponse)
+async def update_entity(
+    request: Request,
+    entity_id: str,
+    name: str = Form(...),
+    entity_type: str = Form(...),
+    description: str = Form(default=""),
+    aliases: str = Form(default=""),
+) -> HTMLResponse:
+    """Save edits to an entity."""
+    try:
+        et = EntityType(entity_type)
+    except ValueError:
+        return HTMLResponse("<p>Invalid entity type</p>", status_code=400)
+
+    alias_list = [a.strip() for a in aliases.split(",") if a.strip()] if aliases else []
+
+    entity = await app_state.entity_repo.update_entity(
+        UUID(entity_id),
+        name=name,
+        entity_type=et,
+        description=description,
+        aliases=alias_list,
+    )
+    if not entity:
+        return HTMLResponse("<p>Entity not found</p>", status_code=404)
+
+    # Re-render the full entity detail page content
+    entry_ids = await app_state.entity_repo.get_entries_for_entity(entity.id)
+    entries = []
+    for eid in entry_ids:
+        entry = await app_state.repository.get_by_id(UUID(eid))
+        if entry:
+            entries.append(entry)
+    entries.sort(key=lambda e: e.created_at, reverse=True)
+
+    cooccurrence = []
+    try:
+        cooccurrence = await app_state.graph_service.get_entity_cooccurrence(entity.id)
+    except Exception:
+        pass
+
+    summary = None
+    try:
+        summary = await app_state.summarization_service.get_entity_summary(entity.id)
+    except Exception:
+        pass
+
+    return templates.TemplateResponse(
+        "entity_detail_page.html",
+        _shared_ctx(
+            request,
+            entity=entity,
+            entries=entries,
+            cooccurrence=cooccurrence,
+            entity_summary=summary,
+        ),
+    )
+
+
+@router.delete("/entity/{entity_id}", response_class=HTMLResponse)
+async def delete_entity(request: Request, entity_id: str) -> HTMLResponse:
+    """Permanently delete an entity and all its mentions."""
+    deleted = await app_state.entity_repo.delete_entity(UUID(entity_id))
+    if not deleted:
+        return HTMLResponse("<p>Entity not found</p>", status_code=404)
+    log.info("entity_deleted", entity_id=entity_id)
+    response = HTMLResponse("")
+    response.headers["HX-Redirect"] = "/entities"
+    return response
+
+
 # ── Phase 4: Relationship Explorer ───────────────────────────────
 
 @router.get("/entry/{entry_id}/relationships", response_class=HTMLResponse)
@@ -1387,6 +1474,82 @@ async def delete_initiative(request: Request, initiative_id: str) -> HTMLRespons
     return HTMLResponse("")
 
 
+@router.get("/strategy/initiative/{initiative_id}/edit", response_class=HTMLResponse)
+async def edit_initiative_form(request: Request, initiative_id: str) -> HTMLResponse:
+    """Return the inline edit form for an initiative."""
+    initiative = await app_state.strategy_repo.get_initiative(UUID(initiative_id))
+    if initiative is None:
+        return HTMLResponse("<p>Initiative not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "strategy/partials/initiative_edit.html",
+        _shared_ctx(request, initiative=initiative),
+    )
+
+
+@router.put("/strategy/initiative/{initiative_id}", response_class=HTMLResponse)
+async def update_initiative(
+    request: Request,
+    initiative_id: str,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    initiative_type: str = Form(default="scored"),
+    authority: int = Form(default=0),
+    asymmetric_info: int = Form(default=0),
+    future_mobility: int = Form(default=0),
+    reusable_leverage: int = Form(default=0),
+    right_visibility: int = Form(default=0),
+    visibility: str = Form(default="hidden"),
+    risk_level: int = Form(default=0),
+    status: str = Form(default="active"),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Update an existing initiative."""
+    from src.models.strategy import Initiative, InitiativeScores
+
+    existing = await app_state.strategy_repo.get_initiative(UUID(initiative_id))
+    if existing is None:
+        return HTMLResponse("<p>Initiative not found</p>", status_code=404)
+
+    scores = InitiativeScores(
+        authority=authority,
+        asymmetric_info=asymmetric_info,
+        future_mobility=future_mobility,
+        reusable_leverage=reusable_leverage,
+        right_visibility=right_visibility,
+    )
+    existing.title = title
+    existing.description = description
+    existing.initiative_type = InitiativeType(initiative_type)
+    existing.scores = scores
+    existing.category = scores.category
+    existing.visibility = VisibilityLevel(visibility)
+    existing.risk_level = risk_level
+    existing.status = status
+    existing.notes = notes
+    existing.updated_at = datetime.now(timezone.utc)
+
+    await app_state.strategy_repo.save_initiative(existing)
+    link_count = await app_state.strategy_repo.count_links_for_initiative(existing.id)
+
+    return templates.TemplateResponse(
+        "strategy/partials/initiative_card.html",
+        _shared_ctx(request, initiative=existing, link_count=link_count),
+    )
+
+
+@router.get("/strategy/initiative/{initiative_id}/card", response_class=HTMLResponse)
+async def initiative_card(request: Request, initiative_id: str) -> HTMLResponse:
+    """Return the initiative card partial (used by edit cancel)."""
+    initiative = await app_state.strategy_repo.get_initiative(UUID(initiative_id))
+    if initiative is None:
+        return HTMLResponse("")
+    link_count = await app_state.strategy_repo.count_links_for_initiative(initiative.id)
+    return templates.TemplateResponse(
+        "strategy/partials/initiative_card.html",
+        _shared_ctx(request, initiative=initiative, link_count=link_count),
+    )
+
+
 # ── Initiative Links ─────────────────────────────────────────────
 
 @router.post("/strategy/initiative/{initiative_id}/links", response_class=HTMLResponse)
@@ -1518,6 +1681,68 @@ async def delete_stakeholder(request: Request, stakeholder_id: str) -> HTMLRespo
     return HTMLResponse("")
 
 
+@router.get("/strategy/stakeholder/{stakeholder_id}/edit", response_class=HTMLResponse)
+async def edit_stakeholder_form(request: Request, stakeholder_id: str) -> HTMLResponse:
+    """Return the inline edit form for a stakeholder."""
+    stakeholder = await app_state.strategy_repo.get_stakeholder(UUID(stakeholder_id))
+    if stakeholder is None:
+        return HTMLResponse("<p>Stakeholder not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "strategy/partials/stakeholder_edit.html",
+        _shared_ctx(request, stakeholder=stakeholder),
+    )
+
+
+@router.put("/strategy/stakeholder/{stakeholder_id}", response_class=HTMLResponse)
+async def update_stakeholder(
+    request: Request,
+    stakeholder_id: str,
+    name: str = Form(...),
+    role: str = Form(default=""),
+    influence_level: int = Form(default=5),
+    incentives: str = Form(default=""),
+    alignment_score: int = Form(default=0),
+    dependency_on_you: int = Form(default=0),
+    trust_score: int = Form(default=5),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Update an existing stakeholder."""
+    from src.models.strategy import Stakeholder
+
+    existing = await app_state.strategy_repo.get_stakeholder(UUID(stakeholder_id))
+    if existing is None:
+        return HTMLResponse("<p>Stakeholder not found</p>", status_code=404)
+
+    existing.name = name
+    existing.role = role
+    existing.influence_level = influence_level
+    existing.incentives = incentives
+    existing.alignment_score = alignment_score
+    existing.dependency_on_you = dependency_on_you
+    existing.trust_score = trust_score
+    existing.notes = notes
+    existing.updated_at = datetime.now(timezone.utc)
+
+    await app_state.strategy_repo.save_stakeholder(existing)
+
+    return templates.TemplateResponse(
+        "strategy/partials/stakeholder_card.html",
+        _shared_ctx(request, stakeholder=existing),
+    )
+
+
+@router.get("/strategy/stakeholder/{stakeholder_id}/card", response_class=HTMLResponse)
+async def stakeholder_card(request: Request, stakeholder_id: str) -> HTMLResponse:
+    """Return the stakeholder card partial (used by edit cancel)."""
+    stakeholder = await app_state.strategy_repo.get_stakeholder(UUID(stakeholder_id))
+    if stakeholder is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(
+        "strategy/partials/stakeholder_card.html",
+        _shared_ctx(request, stakeholder=stakeholder),
+    )
+
+
 # ── Strategic Assets ─────────────────────────────────────────────
 
 @router.get("/strategy/assets", response_class=HTMLResponse)
@@ -1582,6 +1807,76 @@ async def delete_asset(request: Request, asset_id: str) -> HTMLResponse:
     """Delete a strategic asset."""
     await app_state.strategy_repo.delete_asset(UUID(asset_id))
     return HTMLResponse("")
+
+
+@router.get("/strategy/asset/{asset_id}/edit", response_class=HTMLResponse)
+async def edit_asset_form(request: Request, asset_id: str) -> HTMLResponse:
+    """Return the inline edit form for a strategic asset."""
+    asset = await app_state.strategy_repo.get_asset(UUID(asset_id))
+    if asset is None:
+        return HTMLResponse("<p>Asset not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "strategy/partials/asset_edit.html",
+        _shared_ctx(request, asset=asset),
+    )
+
+
+@router.put("/strategy/asset/{asset_id}", response_class=HTMLResponse)
+async def update_asset(
+    request: Request,
+    asset_id: str,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    asset_type: str = Form(default="reputation"),
+    visibility: str = Form(default="hidden"),
+    reusability_score: int = Form(default=0),
+    signaling_strength: int = Form(default=0),
+    market_relevance: int = Form(default=0),
+    compounding_potential: int = Form(default=0),
+    portability_score: int = Form(default=0),
+    market_demand: int = Form(default=0),
+    monetization_potential: int = Form(default=0),
+    time_to_deploy: int = Form(default=0),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Update an existing strategic asset."""
+    existing = await app_state.strategy_repo.get_asset(UUID(asset_id))
+    if existing is None:
+        return HTMLResponse("<p>Asset not found</p>", status_code=404)
+
+    existing.title = title
+    existing.description = description
+    existing.asset_type = AssetCategory(asset_type)
+    existing.visibility = VisibilityLevel(visibility)
+    existing.reusability_score = reusability_score
+    existing.signaling_strength = signaling_strength
+    existing.market_relevance = market_relevance
+    existing.compounding_potential = compounding_potential
+    existing.portability_score = portability_score
+    existing.market_demand = market_demand
+    existing.monetization_potential = monetization_potential
+    existing.time_to_deploy = time_to_deploy
+    existing.notes = notes
+    existing.updated_at = datetime.now(timezone.utc)
+
+    await app_state.strategy_repo.save_asset(existing)
+
+    return templates.TemplateResponse(
+        "strategy/partials/asset_card.html",
+        _shared_ctx(request, asset=existing),
+    )
+
+
+@router.get("/strategy/asset/{asset_id}/card", response_class=HTMLResponse)
+async def asset_card(request: Request, asset_id: str) -> HTMLResponse:
+    """Return the asset card partial (used by edit cancel)."""
+    asset = await app_state.strategy_repo.get_asset(UUID(asset_id))
+    if asset is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(
+        "strategy/partials/asset_card.html",
+        _shared_ctx(request, asset=asset),
+    )
 
 
 # ── Influence Tracking ───────────────────────────────────────────
@@ -1659,3 +1954,62 @@ async def api_influence_trend() -> JSONResponse:
     """JSON API for influence trend data."""
     trend = await app_state.influence_tracker.get_trend()
     return JSONResponse(trend)
+
+
+@router.post("/strategy/load-examples", response_class=HTMLResponse)
+async def load_example_dataset(
+    request: Request,
+    dataset: str = Form(default="personal"),
+) -> HTMLResponse:
+    """Load an example dataset into the strategy engine, replacing existing data."""
+    from src.core.example_datasets import load_example_dataset as _load, DATASETS
+
+    if dataset not in DATASETS:
+        dataset = "personal"
+
+    counts = await _load(app_state.strategy_repo, dataset, clear_existing=True)
+    label = DATASETS[dataset]["label"]
+
+    return HTMLResponse(
+        f'<div style="padding:0.75rem;background:rgba(16,185,129,0.15);border-radius:6px;font-size:0.85rem;">'
+        f'✅ Loaded <strong>{label}</strong> dataset: '
+        f'{counts["stakeholders"]} stakeholders, {counts["initiatives"]} initiatives, '
+        f'{counts["assets"]} assets, {counts["influence_deltas"]} influence records. '
+        f'<a href="/strategy" style="color:var(--color-emerald);font-weight:600;">Refresh to see results →</a>'
+        f'</div>'
+    )
+
+
+# ── Admin: Reset Everything ──────────────────────────────────────
+
+@router.post("/admin/reset", response_class=HTMLResponse)
+async def nuke_all(request: Request) -> HTMLResponse:
+    """Delete ALL data from every table — complete factory reset.
+
+    Also clears the Qdrant vector collection.
+    """
+    counts = await app_state.database.nuke_all()
+
+    # Clear Qdrant vectors
+    try:
+        vs = app_state.pipeline.vector_store
+        for coll in [vs.collection_name, vs.entity_collection_name]:
+            try:
+                vs.client.delete_collection(coll)
+            except Exception:
+                pass
+        await vs.init_collection()
+        log.info("qdrant_collections_reset")
+    except Exception as e:
+        log.warning("qdrant_reset_failed", error=str(e))
+
+    total = sum(counts.values())
+    log.info("factory_reset_complete", total_deleted=total, counts=counts)
+
+    return HTMLResponse(
+        f'<div style="padding:0.75rem;background:rgba(239,68,68,0.15);border-radius:6px;font-size:0.85rem;">'
+        f'🗑️ Factory reset complete — <strong>{total}</strong> records deleted across '
+        f'{len([t for t, c in counts.items() if c > 0])} tables. '
+        f'<a href="/" style="color:var(--color-red);font-weight:600;">Go to Dashboard →</a>'
+        f'</div>'
+    )

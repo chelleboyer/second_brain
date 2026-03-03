@@ -762,3 +762,286 @@ class TestInitiativeLinks:
         initiative_ids = {str(l.initiative_id) for l in links}
         assert str(init1.id) in initiative_ids
         assert str(init2.id) in initiative_ids
+
+
+# ── Initiative Fuzzy Match & Auto-Link Tests ─────────────────────
+
+
+class TestInitiativeFuzzyMatch:
+    """Tests for find_initiatives_by_title and link_exists."""
+
+    @pytest.mark.asyncio
+    async def test_exact_match(self, strategy_repo):
+        """Exact title match returns the initiative."""
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        matches = await strategy_repo.find_initiatives_by_title("Platform Rewrite")
+        assert len(matches) == 1
+        assert matches[0].title == "Platform Rewrite"
+
+    @pytest.mark.asyncio
+    async def test_case_insensitive_match(self, strategy_repo):
+        """Match is case-insensitive."""
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        matches = await strategy_repo.find_initiatives_by_title("platform rewrite")
+        assert len(matches) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_inside_title(self, strategy_repo):
+        """Query that's a substring of the initiative title matches."""
+        init = Initiative(title="Platform Rewrite Phase 2")
+        await strategy_repo.save_initiative(init)
+
+        matches = await strategy_repo.find_initiatives_by_title("Platform Rewrite")
+        assert len(matches) == 1
+
+    @pytest.mark.asyncio
+    async def test_title_inside_query(self, strategy_repo):
+        """Initiative title that's a substring of the query matches."""
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        matches = await strategy_repo.find_initiatives_by_title(
+            "Platform Rewrite Phase 2 Kickoff"
+        )
+        assert len(matches) == 1
+
+    @pytest.mark.asyncio
+    async def test_no_match(self, strategy_repo):
+        """Non-matching title returns empty."""
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        matches = await strategy_repo.find_initiatives_by_title("Auth Migration")
+        assert len(matches) == 0
+
+    @pytest.mark.asyncio
+    async def test_only_active_by_default(self, strategy_repo):
+        """Only active initiatives are returned by default."""
+        active = Initiative(title="Platform Rewrite", status="active")
+        paused = Initiative(title="Platform Rewrite Legacy", status="paused")
+        await strategy_repo.save_initiative(active)
+        await strategy_repo.save_initiative(paused)
+
+        matches = await strategy_repo.find_initiatives_by_title("Platform Rewrite")
+        assert len(matches) == 1
+        assert matches[0].status == "active"
+
+    @pytest.mark.asyncio
+    async def test_all_statuses(self, strategy_repo):
+        """Pass status=None to match all statuses."""
+        active = Initiative(title="Platform Rewrite", status="active")
+        paused = Initiative(title="Platform Rewrite Legacy", status="paused")
+        await strategy_repo.save_initiative(active)
+        await strategy_repo.save_initiative(paused)
+
+        matches = await strategy_repo.find_initiatives_by_title(
+            "Platform Rewrite", status=None
+        )
+        assert len(matches) == 2
+
+    @pytest.mark.asyncio
+    async def test_exact_match_ranked_first(self, strategy_repo):
+        """Exact match is ranked above substring matches."""
+        contains = Initiative(title="Platform Rewrite Phase 2")
+        exact = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(contains)
+        await strategy_repo.save_initiative(exact)
+
+        matches = await strategy_repo.find_initiatives_by_title("Platform Rewrite")
+        assert len(matches) == 2
+        assert matches[0].title == "Platform Rewrite"  # exact first
+
+    @pytest.mark.asyncio
+    async def test_link_exists_true(self, strategy_repo):
+        """link_exists returns True when link is present."""
+        init = Initiative(title="Test")
+        await strategy_repo.save_initiative(init)
+        entry_id = str(uuid4())
+        await strategy_repo.save_initiative_link(
+            InitiativeLink(
+                initiative_id=init.id,
+                linked_type="entry",
+                linked_id=entry_id,
+                linked_title="Test Entry",
+            )
+        )
+
+        assert await strategy_repo.link_exists(init.id, entry_id) is True
+
+    @pytest.mark.asyncio
+    async def test_link_exists_false(self, strategy_repo):
+        """link_exists returns False when no link exists."""
+        init = Initiative(title="Test")
+        await strategy_repo.save_initiative(init)
+
+        assert await strategy_repo.link_exists(init.id, str(uuid4())) is False
+
+
+# ── Pipeline Auto-Link Tests ────────────────────────────────────
+
+
+class TestPipelineAutoLink:
+    """Tests for CapturePipeline._auto_link_initiatives."""
+
+    @pytest.fixture
+    async def strategy_db(self) -> AsyncGenerator[Database, None]:
+        database = Database(":memory:")
+        await database.init_db()
+        yield database
+
+    @pytest.fixture
+    async def strategy_repo(self, strategy_db: Database) -> StrategyRepository:
+        return StrategyRepository(strategy_db)
+
+    @pytest.fixture
+    def pipeline_with_strategy(
+        self, mock_classifier, mock_vector_store, mock_collector,
+        strategy_db, strategy_repo,
+    ):
+        """Pipeline with mocked deps + real strategy repo (shared DB)."""
+        from src.storage.repository import BrainEntryRepository
+        from src.core.pipeline import CapturePipeline
+        repo = BrainEntryRepository(strategy_db)
+        return CapturePipeline(
+            classifier=mock_classifier,
+            repository=repo,
+            vector_store=mock_vector_store,
+            collector=mock_collector,
+            strategy_repo=strategy_repo,
+        )
+
+    @pytest.mark.asyncio
+    async def test_auto_links_entry_to_matching_initiative(
+        self, pipeline_with_strategy, strategy_repo,
+    ):
+        """Entry with project field matching an initiative gets auto-linked."""
+        from src.models.brain_entry import BrainEntry
+        from src.models.enums import EntryType
+
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        entry = BrainEntry(
+            type=EntryType.IDEA,
+            title="OAuth2 Migration",
+            summary="Migrate auth to OAuth2",
+            raw_content="Migrate auth for platform rewrite",
+            project="Platform Rewrite",
+            author_id="U1",
+            author_name="Michelle",
+        )
+
+        links = await pipeline_with_strategy._auto_link_initiatives(entry)
+        assert len(links) == 1
+        assert str(links[0].initiative_id) == str(init.id)
+        assert links[0].linked_id == str(entry.id)
+        assert "Platform Rewrite" in links[0].link_note
+
+    @pytest.mark.asyncio
+    async def test_auto_links_via_extracted_entities(
+        self, pipeline_with_strategy, strategy_repo,
+    ):
+        """Entry with extracted entity matching an initiative gets linked."""
+        from src.models.brain_entry import BrainEntry
+        from src.models.enums import EntryType
+
+        init = Initiative(title="Auth Service")
+        await strategy_repo.save_initiative(init)
+
+        entry = BrainEntry(
+            type=EntryType.NOTE,
+            title="Auth Notes",
+            summary="Notes about auth",
+            raw_content="Notes about auth service",
+            extracted_entities=["Auth Service", "OAuth2"],
+            author_id="U1",
+            author_name="Michelle",
+        )
+
+        links = await pipeline_with_strategy._auto_link_initiatives(entry)
+        assert len(links) == 1
+        assert str(links[0].initiative_id) == str(init.id)
+
+    @pytest.mark.asyncio
+    async def test_no_duplicate_links(
+        self, pipeline_with_strategy, strategy_repo,
+    ):
+        """Running auto-link twice doesn't create duplicate links."""
+        from src.models.brain_entry import BrainEntry
+        from src.models.enums import EntryType
+
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        entry = BrainEntry(
+            type=EntryType.IDEA,
+            title="Test",
+            summary="Test",
+            raw_content="Test",
+            project="Platform Rewrite",
+            author_id="U1",
+            author_name="Michelle",
+        )
+
+        links1 = await pipeline_with_strategy._auto_link_initiatives(entry)
+        links2 = await pipeline_with_strategy._auto_link_initiatives(entry)
+        assert len(links1) == 1
+        assert len(links2) == 0  # No duplicate
+
+    @pytest.mark.asyncio
+    async def test_no_strategy_repo_returns_empty(
+        self, mock_classifier, mock_vector_store, mock_collector, db,
+    ):
+        """Pipeline without strategy_repo returns empty list."""
+        from src.core.pipeline import CapturePipeline
+        from src.storage.repository import BrainEntryRepository
+        from src.models.brain_entry import BrainEntry
+        from src.models.enums import EntryType
+
+        pipeline = CapturePipeline(
+            classifier=mock_classifier,
+            repository=BrainEntryRepository(db),
+            vector_store=mock_vector_store,
+            collector=mock_collector,
+        )
+
+        entry = BrainEntry(
+            type=EntryType.IDEA,
+            title="Test",
+            summary="Test",
+            raw_content="Test",
+            project="Some Project",
+            author_id="U1",
+            author_name="Michelle",
+        )
+
+        links = await pipeline._auto_link_initiatives(entry)
+        assert links == []
+
+    @pytest.mark.asyncio
+    async def test_no_match_returns_empty(
+        self, pipeline_with_strategy, strategy_repo,
+    ):
+        """Entry whose project doesn't match any initiative gets no links."""
+        from src.models.brain_entry import BrainEntry
+        from src.models.enums import EntryType
+
+        init = Initiative(title="Platform Rewrite")
+        await strategy_repo.save_initiative(init)
+
+        entry = BrainEntry(
+            type=EntryType.IDEA,
+            title="Test",
+            summary="Test",
+            raw_content="Test",
+            project="Totally Unrelated",
+            author_id="U1",
+            author_name="Michelle",
+        )
+
+        links = await pipeline_with_strategy._auto_link_initiatives(entry)
+        assert links == []

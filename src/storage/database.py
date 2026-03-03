@@ -45,6 +45,47 @@ class Database:
             await self._persistent_conn.close()
             self._persistent_conn = None
 
+    async def nuke_all(self) -> dict[str, int]:
+        """Delete ALL data from every table. Returns counts per table.
+
+        This is a destructive operation — use with caution.
+        Preserves schema and indexes; only deletes rows.
+        """
+        tables = [
+            "initiative_links",
+            "entity_mentions",
+            "entry_relationships",
+            "entity_summaries",
+            "influence_deltas",
+            "weekly_simulations",
+            "strategic_assets",
+            "initiatives",
+            "stakeholders",
+            "entities",
+            "brain_entries",
+            "app_state",
+        ]
+        counts: dict[str, int] = {}
+        async with self.get_connection() as conn:
+            for table in tables:
+                try:
+                    cursor = await conn.execute(f"SELECT COUNT(*) as cnt FROM {table}")
+                    row = await cursor.fetchone()
+                    counts[table] = row["cnt"] if row else 0
+                    await conn.execute(f"DELETE FROM {table}")
+                except Exception:
+                    counts[table] = 0
+            # Rebuild FTS index
+            try:
+                await conn.execute(
+                    "INSERT INTO brain_entries_fts(brain_entries_fts) VALUES('rebuild')"
+                )
+            except Exception:
+                pass
+            await conn.commit()
+        log.info("nuke_all_complete", counts=counts)
+        return counts
+
     async def init_db(self) -> None:
         """Create tables, FTS5 virtual table, and sync triggers."""
         log.info("initializing_database", db_path=str(self.db_path))

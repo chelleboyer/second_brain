@@ -1,0 +1,103 @@
+<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="initiative-{{ initiative.id }}">
+    <form hx-put="/strategy/initiative/{{ initiative.id }}"
+          hx-target="#initiative-{{ initiative.id }}"
+          hx-swap="outerHTML">
+
+        <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem;">✏️ Edit Initiative</div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Title</label>
+            <input type="text" name="title" value="{{ initiative.title }}" required
+                   style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Description</label>
+            <textarea name="description" rows="2"
+                      style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;resize:vertical;">{{ initiative.description or '' }}</textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Type</label>
+                <select name="initiative_type"
+                        style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="scored" {% if initiative.initiative_type.value == 'scored' %}selected{% endif %}>Scored</option>
+                    <option value="mandatory" {% if initiative.initiative_type.value == 'mandatory' %}selected{% endif %}>Mandatory</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Status</label>
+                <select name="status"
+                        style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="active" {% if initiative.status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="paused" {% if initiative.status == 'paused' %}selected{% endif %}>Paused</option>
+                    <option value="completed" {% if initiative.status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="abandoned" {% if initiative.status == 'abandoned' %}selected{% endif %}>Abandoned</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Visibility</label>
+                <select name="visibility"
+                        style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="hidden" {% if initiative.visibility.value == 'hidden' %}selected{% endif %}>🔒 Hidden</option>
+                    <option value="local" {% if initiative.visibility.value == 'local' %}selected{% endif %}>👥 Local</option>
+                    <option value="executive" {% if initiative.visibility.value == 'executive' %}selected{% endif %}>🏢 Executive</option>
+                    <option value="market" {% if initiative.visibility.value == 'market' %}selected{% endif %}>🌐 Market</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Risk Level (0-5)</label>
+                <input type="number" name="risk_level" value="{{ initiative.risk_level }}" min="0" max="5"
+                       style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+            </div>
+        </div>
+
+        <!-- Optionality Scores -->
+        <div style="font-size: 0.75rem; font-weight: 600; margin: 0.75rem 0 0.25rem;">Optionality Scores (1-5)</div>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.4rem; margin-bottom: 0.5rem;">
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Authority</label>
+                <input type="number" name="authority" value="{{ initiative.scores.authority }}" min="1" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Asymm Info</label>
+                <input type="number" name="asymmetric_info" value="{{ initiative.scores.asymmetric_info }}" min="1" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Mobility</label>
+                <input type="number" name="future_mobility" value="{{ initiative.scores.future_mobility }}" min="1" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Leverage</label>
+                <input type="number" name="reusable_leverage" value="{{ initiative.scores.reusable_leverage }}" min="1" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Visibility</label>
+                <input type="number" name="right_visibility" value="{{ initiative.scores.right_visibility }}" min="1" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Notes</label>
+            <textarea name="notes" rows="2"
+                      style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;resize:vertical;">{{ initiative.notes or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="submit" class="btn btn-primary" style="font-size: 0.8rem;">💾 Save</button>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem;"
+                    hx-get="/strategy/initiative/{{ initiative.id }}/card"
+                    hx-target="#initiative-{{ initiative.id }}"
+                    hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</div>

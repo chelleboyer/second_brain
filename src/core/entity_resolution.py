@@ -101,6 +101,54 @@ class EntityRepository:
             rows = await cursor.fetchall()
             return [self._row_to_entity(row) for row in rows]
 
+    async def update_entity(
+        self,
+        entity_id: UUID,
+        *,
+        name: str | None = None,
+        entity_type: EntityType | None = None,
+        description: str | None = None,
+        aliases: list[str] | None = None,
+    ) -> Entity | None:
+        """Update an entity's editable fields. Returns updated entity or None."""
+        entity = await self.get_entity_by_id(entity_id)
+        if not entity:
+            return None
+
+        if name is not None:
+            entity.name = name
+        if entity_type is not None:
+            entity.entity_type = entity_type
+        if description is not None:
+            entity.description = description
+        if aliases is not None:
+            entity.aliases = aliases
+        entity.updated_at = datetime.now(timezone.utc)
+
+        await self.save_entity(entity)
+        return entity
+
+    async def delete_entity(self, entity_id: UUID) -> bool:
+        """Delete an entity and all its mentions. Returns True if deleted."""
+        async with self.db.get_connection() as conn:
+            # Delete mentions first
+            await conn.execute(
+                "DELETE FROM entity_mentions WHERE entity_id = ?",
+                (str(entity_id),),
+            )
+            # Delete entity summary if exists
+            await conn.execute(
+                "DELETE FROM entity_summaries WHERE entity_id = ?",
+                (str(entity_id),),
+            )
+            # Delete the entity
+            cursor = await conn.execute(
+                "DELETE FROM entities WHERE id = ?",
+                (str(entity_id),),
+            )
+            await conn.commit()
+            return cursor.rowcount > 0
+
     async def increment_entry_count(self, entity_id: UUID) -> None:
         """Bump entry_count by 1 and update updated_at."""
         now = datetime.now(timezone.utc).isoformat()
@@ -223,6 +271,16 @@ class EntityRepository:
             mention_text=row["mention_text"],
             created_at=datetime.fromisoformat(row["created_at"]),
         )
+
+    async def delete_relationship(self, relationship_id: UUID) -> bool:
+        """Delete an entry relationship by ID."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM entry_relationships WHERE id = ?",
+                (str(relationship_id),),
+            )
+            await conn.commit()
+            return cursor.rowcount > 0
 
     @staticmethod
     def _row_to_relationship(row) -> EntryRelationship:

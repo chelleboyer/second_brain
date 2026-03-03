@@ -1,0 +1,55 @@
+{% set ed = entity_display.get(entity.entity_type) %}
+<div class="panel" style="grid-column: 1 / -1;">
+    <div class="detail-nav">
+        <a href="/entities" class="back-link">← Entities</a>
+    </div>
+
+    <h2 style="margin-bottom: 1rem;">✏️ Edit Entity</h2>
+
+    <form hx-put="/entity/{{ entity.id }}"
+          hx-target="body"
+          hx-swap="outerHTML">
+
+        <div class="edit-row" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Name</label>
+            <input type="text" name="name" value="{{ entity.name }}" class="edit-input"
+                   style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);"
+                   required>
+        </div>
+
+        <div class="edit-row" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Type</label>
+            <select name="entity_type"
+                    style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                <option value="project" {% if entity.entity_type.value == 'project' %}selected{% endif %}>🏗️ Project</option>
+                <option value="person" {% if entity.entity_type.value == 'person' %}selected{% endif %}>👤 Person</option>
+                <option value="technology" {% if entity.entity_type.value == 'technology' %}selected{% endif %}>💻 Technology</option>
+                <option value="concept" {% if entity.entity_type.value == 'concept' %}selected{% endif %}>🧠 Concept</option>
+                <option value="organization" {% if entity.entity_type.value == 'organization' %}selected{% endif %}>🏢 Organization</option>
+            </select>
+        </div>
+
+        <div class="edit-row" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Description</label>
+            <textarea name="description" rows="3"
+                      style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); resize: vertical;"
+                      placeholder="Optional description">{{ entity.description or '' }}</textarea>
+        </div>
+
+        <div class="edit-row" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Aliases</label>
+            <input type="text" name="aliases"
+                   value="{{ entity.aliases | join(', ') if entity.aliases else '' }}"
+                   style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);"
+                   placeholder="Comma-separated aliases">
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                Separate multiple aliases with commas
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+            <button type="submit" class="btn btn-primary" style="font-size: 0.85rem;">💾 Save</button>
+            <a href="/entity/{{ entity.id }}" class="btn btn-secondary" style="font-size: 0.85rem; text-decoration: none;">Cancel</a>
+        </div>
+    </form>
+</div>

@@ -52,6 +52,13 @@
         <span>🔗 {{ lc }} link{{ 's' if lc != 1 }}</span>
         {% endif %}
         <span>{{ relative_time(initiative.created_at) }}</span>
+        <button hx-get="/strategy/initiative/{{ initiative.id }}/edit"
+                hx-target="#initiative-{{ initiative.id }}"
+                hx-swap="outerHTML"
+                style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.7rem;padding:0;"
+                title="Edit initiative">
+            ✏️
+        </button>
         <button hx-delete="/strategy/initiative/{{ initiative.id }}"
                 hx-target="#initiative-{{ initiative.id }}"
                 hx-swap="outerHTML"

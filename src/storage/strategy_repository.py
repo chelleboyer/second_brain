@@ -171,6 +171,51 @@ class StrategyRepository:
             rows = await cursor.fetchall()
             return [self._row_to_initiative(r) for r in rows]
 
+    async def find_initiatives_by_title(
+        self, title: str, *, status: str | None = "active"
+    ) -> list[Initiative]:
+        """Find initiatives whose title fuzzy-matches the given string.
+
+        Uses case-insensitive containment in both directions:
+        initiative.title ⊇ query  OR  query ⊇ initiative.title.
+        Returns matches ordered by best-fit-first (exact > contains > contained-by).
+        """
+        query = "SELECT * FROM initiatives WHERE 1=1"
+        params: list = []
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY created_at DESC"
+
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(query, params)
+            rows = await cursor.fetchall()
+
+        needle = title.strip().lower()
+        matches: list[tuple[int, Initiative]] = []
+        for row in rows:
+            init = self._row_to_initiative(row)
+            hay = init.title.strip().lower()
+            if hay == needle:
+                matches.append((0, init))       # exact
+            elif needle in hay:
+                matches.append((1, init))       # query inside initiative title
+            elif hay in needle:
+                matches.append((2, init))       # initiative title inside query
+        matches.sort(key=lambda t: t[0])
+        return [m[1] for m in matches]
+
+    async def link_exists(
+        self, initiative_id: UUID, linked_id: str
+    ) -> bool:
+        """Check if a link already exists between an initiative and a target."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "SELECT 1 FROM initiative_links WHERE initiative_id = ? AND linked_id = ? LIMIT 1",
+                (str(initiative_id), linked_id),
+            )
+            return (await cursor.fetchone()) is not None
+
     async def delete_initiative(self, initiative_id: UUID) -> bool:
         """Delete an initiative by ID."""
         async with self.db.get_connection() as conn:

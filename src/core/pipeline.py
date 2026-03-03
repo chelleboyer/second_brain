@@ -13,9 +13,11 @@ from src.core.exceptions import ClassificationError, StorageError
 from src.core.suggestions import SuggestionEngine
 from src.models.brain_entry import BrainEntry, EntryRelationship
 from src.models.enums import EntryType, NoveltyVerdict, PARACategory, RelationshipType
+from src.models.strategy import InitiativeLink
 from src.retrieval.vector_store import VectorStore
 from src.slack.collector import SlackCollector
 from src.storage.repository import BrainEntryRepository
+from src.storage.strategy_repository import StrategyRepository
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -38,6 +40,7 @@ class CapturePipeline:
         entity_resolver: EntityResolver | None = None,
         entity_repo: EntityRepository | None = None,
         suggestion_engine: SuggestionEngine | None = None,
+        strategy_repo: StrategyRepository | None = None,
     ) -> None:
         self.classifier = classifier
         self.repository = repository
@@ -46,6 +49,7 @@ class CapturePipeline:
         self.entity_resolver = entity_resolver
         self.entity_repo = entity_repo
         self.suggestion_engine = suggestion_engine
+        self.strategy_repo = strategy_repo
 
     async def process_messages(
         self, messages: list[dict]
@@ -241,6 +245,9 @@ class CapturePipeline:
         # Entity resolution (if available)
         resolved = await self._resolve_entities(entry, extraction)
 
+        # Auto-link to matching initiatives (if strategy repo available)
+        await self._auto_link_initiatives(entry)
+
         # Store embedding in Qdrant (if available)
         if embedding:
             await self.vector_store.upsert(
@@ -353,3 +360,65 @@ class CapturePipeline:
                 log.debug("duplicate_vector_check_failed", error=str(e))
 
         return None
+
+    async def _auto_link_initiatives(
+        self, entry: BrainEntry
+    ) -> list[InitiativeLink]:
+        """Auto-link an entry to matching initiatives by project name and extracted entities.
+
+        Searches for initiatives whose title matches the entry's project field
+        or any project-type extracted entity. Creates InitiativeLinks for each
+        match (skipping duplicates).
+
+        Returns the list of newly created links.
+        """
+        if not self.strategy_repo:
+            return []
+
+        created_links: list[InitiativeLink] = []
+
+        # Collect candidate project names to match against initiatives
+        candidates: list[str] = []
+        if entry.project:
+            candidates.append(entry.project)
+        for entity_name in entry.extracted_entities:
+            if entity_name and entity_name not in candidates:
+                candidates.append(entity_name)
+
+        if not candidates:
+            return []
+
+        seen_initiative_ids: set[str] = set()
+
+        for candidate in candidates:
+            matches = await self.strategy_repo.find_initiatives_by_title(candidate)
+            for initiative in matches:
+                init_id_str = str(initiative.id)
+                if init_id_str in seen_initiative_ids:
+                    continue
+                seen_initiative_ids.add(init_id_str)
+
+                # Skip if link already exists
+                if await self.strategy_repo.link_exists(
+                    initiative.id, str(entry.id)
+                ):
+                    continue
+
+                link = InitiativeLink(
+                    initiative_id=initiative.id,
+                    linked_type="entry",
+                    linked_id=str(entry.id),
+                    linked_title=entry.title,
+                    link_note=f"Auto-linked via project '{candidate}'",
+                )
+                await self.strategy_repo.save_initiative_link(link)
+                created_links.append(link)
+                log.info(
+                    "initiative_auto_linked",
+                    entry_id=str(entry.id),
+                    initiative_id=init_id_str,
+                    initiative_title=initiative.title,
+                    matched_on=candidate,
+                )
+
+        return created_links

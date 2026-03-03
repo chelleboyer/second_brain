@@ -1,0 +1,105 @@
+<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="asset-{{ asset.id }}">
+    <form hx-put="/strategy/asset/{{ asset.id }}"
+          hx-target="#asset-{{ asset.id }}"
+          hx-swap="outerHTML">
+
+        <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem;">✏️ Edit Asset</div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Title</label>
+            <input type="text" name="title" value="{{ asset.title }}" required
+                   style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Description</label>
+            <textarea name="description" rows="2"
+                      style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;resize:vertical;">{{ asset.description or '' }}</textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Asset Type</label>
+                <select name="asset_type"
+                        style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="reputation" {% if asset.asset_type.value == 'reputation' %}selected{% endif %}>👑 Reputation</option>
+                    <option value="optionality" {% if asset.asset_type.value == 'optionality' %}selected{% endif %}>🔑 Optionality</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Visibility</label>
+                <select name="visibility"
+                        style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="hidden" {% if asset.visibility.value == 'hidden' %}selected{% endif %}>🔒 Hidden</option>
+                    <option value="local" {% if asset.visibility.value == 'local' %}selected{% endif %}>👥 Local</option>
+                    <option value="executive" {% if asset.visibility.value == 'executive' %}selected{% endif %}>🏢 Executive</option>
+                    <option value="market" {% if asset.visibility.value == 'market' %}selected{% endif %}>🌐 Market</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Reputation Scores -->
+        <div style="font-size: 0.75rem; font-weight: 600; margin: 0.5rem 0 0.25rem;">Reputation Scores (0-10)</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-bottom: 0.5rem;">
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Reusability</label>
+                <input type="number" name="reusability_score" value="{{ asset.reusability_score }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Signal</label>
+                <input type="number" name="signaling_strength" value="{{ asset.signaling_strength }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Market Rel.</label>
+                <input type="number" name="market_relevance" value="{{ asset.market_relevance }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Compound</label>
+                <input type="number" name="compounding_potential" value="{{ asset.compounding_potential }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+        </div>
+
+        <!-- Optionality Scores -->
+        <div style="font-size: 0.75rem; font-weight: 600; margin: 0.5rem 0 0.25rem;">Optionality Scores (0-10)</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-bottom: 0.5rem;">
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Portable</label>
+                <input type="number" name="portability_score" value="{{ asset.portability_score }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Demand</label>
+                <input type="number" name="market_demand" value="{{ asset.market_demand }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Monetize</label>
+                <input type="number" name="monetization_potential" value="{{ asset.monetization_potential }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.65rem; display: block;">Deploy</label>
+                <input type="number" name="time_to_deploy" value="{{ asset.time_to_deploy }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Notes</label>
+            <textarea name="notes" rows="2"
+                      style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;resize:vertical;">{{ asset.notes or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="submit" class="btn btn-primary" style="font-size: 0.8rem;">💾 Save</button>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem;"
+                    hx-get="/strategy/asset/{{ asset.id }}/card"
+                    hx-target="#asset-{{ asset.id }}"
+                    hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</div>

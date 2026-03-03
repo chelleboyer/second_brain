@@ -76,6 +76,8 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 ### Entity Resolution & Knowledge Graph
 
 - **3-tier entity matching** — Exact → fuzzy bigram → semantic embedding matching
+- **Auto-linking** — New captures automatically link to matching active initiatives via fuzzy title matching
+- **Entity CRUD** — Edit name, type, description, and aliases for any entity; delete with cascading mention cleanup
 - **Entity pages** — Each entity has a detail page with backlinks, co-occurring entities, and timeline
 - **Knowledge graph** — Interactive D3.js force-directed graph showing entity connections
 - **Progressive summarization** — Generate LLM summaries for entities from their linked entries
@@ -107,7 +109,10 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 - **Strategic assets** — Score reputation assets (reusability, signaling, market relevance, compounding) and optionality assets (portability, market demand, monetization, deploy speed)
 - **Influence tracking** — Weekly logs of advice sought, decisions changed, framing adopted; auto-computed trend
 - **Weekly simulation** — LLM-driven (with rule-based fallback) strategic review that outputs one strategic move, maintenance tasks, and position-building priorities
-- **Strategy dashboard** (`/strategy`) — KPI meters, visibility matrix, simulation runner, and influence history
+- **Full CRUD** — Inline edit forms for initiatives (scores, status, visibility), stakeholders (all metrics), and assets (all scores); delete any item from its card
+- **Initiative promotion** — Suggestion engine recommends promoting unlinked project entities into scored initiatives
+- **Factory reset** — One-click nuke of all data (SQLite + Qdrant vectors) from the Strategy dashboard, with confirmation
+- **Strategy dashboard** (`/strategy`) — KPI meters, visibility matrix, simulation runner, influence history, and **Load Examples** button with pre-built datasets (Corporate Engineer or Personal/Solopreneur)
 
 ### Eval Harness
 
@@ -147,12 +152,13 @@ Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF 
 
 | Component | Path | Purpose |
 |-----------|------|---------|
-| Pipeline | `src/core/pipeline.py` | Orchestrates capture: classify → deduplicate → store → resolve entities |
+| Pipeline | `src/core/pipeline.py` | Orchestrates capture: classify → deduplicate → store → resolve entities → auto-link initiatives |
 | Classifier | `src/classification/classifier.py` | LLM-based entry classification via HF Inference API |
 | Entity Resolver | `src/core/entity_resolution.py` | 3-tier entity matching and linking |
 | Graph Service | `src/core/graph.py` | Knowledge graph queries and co-occurrence analysis |
-| Suggestion Engine | `src/core/suggestions.py` | Related entry suggestions |
+| Suggestion Engine | `src/core/suggestions.py` | Related entry + initiative promotion suggestions |
 | Summarization | `src/core/summarization.py` | Progressive entity summarization |
+| Example Datasets | `src/core/example_datasets.py` | Pre-built strategy datasets loadable from the UI |
 | Move Evaluator | `src/core/evaluation.py` | 5-dimension initiative scoring engine |
 | Influence Tracker | `src/core/evaluation.py` | Weekly influence delta tracking and trending |
 | Strategic Simulator | `src/core/simulation.py` | Weekly strategic simulation protocol |
@@ -168,7 +174,7 @@ All entries include: `id` (UUID), `type` (enum), `title`, `summary`, `raw_conten
 ## Development
 
 ```bash
-pytest                        # Run tests (246 tests)
+pytest                        # Run tests (261 tests)
 pytest -x -q                  # Quick run, stop on first failure
 LOG_LEVEL=DEBUG second-brain  # Debug logging
 ```
@@ -179,7 +185,10 @@ LOG_LEVEL=DEBUG second-brain  # Debug logging
 python -m scripts.seed_strategy_demo
 ```
 
-Populates the strategy engine with example stakeholders, initiatives, assets, and influence records for exploring the dashboard.
+Populates the strategy engine with example stakeholders, initiatives, assets, and influence records for exploring the dashboard. You can also load example datasets directly from the UI — click **📦 Load Examples** on the Strategy dashboard and choose between:
+
+- **Personal / Solopreneur** — Freelancer building audience, shipping side projects, and growing consulting revenue
+- **Corporate Engineer** — Senior engineer navigating corporate influence, visibility, and career positioning
 
 ## Entry Types
 

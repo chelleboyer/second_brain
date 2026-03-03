@@ -44,6 +44,13 @@
         <span>Monetize: {{ asset.monetization_potential }}</span>
         <span>Deploy: {{ asset.time_to_deploy }}</span>
         {% endif %}
+        <button hx-get="/strategy/asset/{{ asset.id }}/edit"
+                hx-target="#asset-{{ asset.id }}"
+                hx-swap="outerHTML"
+                style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.7rem;padding:0;"
+                title="Edit asset">
+            ✏️
+        </button>
         <button hx-delete="/strategy/asset/{{ asset.id }}"
                 hx-target="#asset-{{ asset.id }}"
                 hx-swap="outerHTML"

@@ -11,10 +11,64 @@
             <h1 style="margin: 0;">♟️ Strategic Positioning</h1>
             <p class="text-muted" style="margin: 0.25rem 0 0;">Reputation &amp; Optionality Engine</p>
         </div>
-        <div style="display:flex;gap:0.5rem;">
+        <div style="display:flex;gap:0.5rem;align-items:center;">
             <a href="/strategy/initiatives" class="btn btn-secondary">📋 Initiatives</a>
             <a href="/strategy/stakeholders" class="btn btn-secondary">👥 Stakeholders</a>
             <a href="/strategy/assets" class="btn btn-secondary">🏆 Assets</a>
+
+            <!-- Load Examples -->
+            <div x-data="{ open: false }" style="position:relative;">
+                <button @click="open = !open" class="btn btn-secondary" style="font-size:0.8rem;">
+                    📦 Load Examples ▾
+                </button>
+                <div x-show="open" @click.outside="open = false" x-transition
+                     style="position:absolute;right:0;top:100%;margin-top:0.4rem;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;padding:0.75rem;z-index:50;min-width:280px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                    <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.5rem;">Load Example Dataset</div>
+                    <p style="font-size:0.75rem;color:var(--text-secondary);margin:0 0 0.75rem;">
+                        Replaces all strategy data with a pre-built example set.
+                    </p>
+
+                    <!-- Factory Reset -->
+                    <div style="border-top:1px solid var(--border-color);margin-top:0.75rem;padding-top:0.75rem;">
+                        <div style="font-weight:600;font-size:0.85rem;color:var(--color-red);margin-bottom:0.25rem;">⚠️ Factory Reset</div>
+                        <p style="font-size:0.7rem;color:var(--text-secondary);margin:0 0 0.5rem;">
+                            Delete ALL data — entries, entities, strategy, vectors. Cannot be undone.
+                        </p>
+                        <button class="btn" style="font-size:0.8rem;background:rgba(239,68,68,0.15);color:var(--color-red);border:1px solid var(--color-red);width:100%;"
+                                hx-post="/admin/reset"
+                                hx-target="#reset-result"
+                                hx-swap="innerHTML"
+                                hx-confirm="⚠️ This will DELETE ALL DATA — entries, entities, strategy objects, and vectors. This cannot be undone. Are you absolutely sure?">
+                            🗑️ Nuke Everything
+                        </button>
+                        <div id="reset-result" style="margin-top:0.5rem;"></div>
+                    </div>
+                    <form hx-post="/strategy/load-examples"
+                          hx-target="#example-load-result"
+                          hx-swap="innerHTML"
+                          style="display:flex;flex-direction:column;gap:0.5rem;">
+                        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);">
+                            <input type="radio" name="dataset" value="personal" checked>
+                            <div>
+                                <div style="font-weight:600;">🧠 Personal / Solopreneur</div>
+                                <div style="font-size:0.7rem;color:var(--text-secondary);">Freelancer building audience &amp; consulting revenue</div>
+                            </div>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;cursor:pointer;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);">
+                            <input type="radio" name="dataset" value="corporate">
+                            <div>
+                                <div style="font-weight:600;">🏢 Corporate Engineer</div>
+                                <div style="font-size:0.7rem;color:var(--text-secondary);">Senior engineer navigating corporate influence</div>
+                            </div>
+                        </label>
+                        <button type="submit" class="btn btn-primary" style="font-size:0.8rem;margin-top:0.25rem;"
+                                hx-confirm="This will replace all existing strategy data. Continue?">
+                            Load Dataset
+                        </button>
+                    </form>
+                    <div id="example-load-result" style="margin-top:0.5rem;"></div>
+                </div>
+            </div>
         </div>
     </div>
 

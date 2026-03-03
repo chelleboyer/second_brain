@@ -9,8 +9,9 @@ import structlog
 from src.core.entity_resolution import EntityRepository
 from src.core.graph import GraphService
 from src.models.brain_entry import BrainEntry, Entity
-from src.models.enums import EntryType, RelationshipType
+from src.models.enums import EntryType, EntityType, RelationshipType
 from src.storage.repository import BrainEntryRepository
+from src.storage.strategy_repository import StrategyRepository
 
 log = structlog.get_logger(__name__)
 
@@ -116,6 +117,7 @@ class SuggestionEngine:
     - Type-based linking: when a risk is captured → surface related decisions
     - Proactive prompts: "You captured 3 things about X this week — want a summary?"
     - Entity-based suggestions: surface entries sharing entities with the new capture
+    - Initiative promotion: suggest promoting unlinked project entities to initiatives
     """
 
     def __init__(
@@ -123,10 +125,12 @@ class SuggestionEngine:
         entity_repo: EntityRepository,
         entry_repo: BrainEntryRepository,
         graph_service: GraphService,
+        strategy_repo: StrategyRepository | None = None,
     ) -> None:
         self.entity_repo = entity_repo
         self.entry_repo = entry_repo
         self.graph_service = graph_service
+        self.strategy_repo = strategy_repo
 
     async def generate_suggestions(
         self, entry: BrainEntry, resolved_entities: list[Entity] | None = None
@@ -157,6 +161,12 @@ class SuggestionEngine:
             entry, resolved_entities or []
         )
         suggestions.extend(entity_suggestions)
+
+        # 4. Initiative promotion suggestions
+        initiative_suggestions = await self._initiative_promotion_suggestions(
+            entry, resolved_entities or []
+        )
+        suggestions.extend(initiative_suggestions)
 
         log.info(
             "suggestions_generated",
@@ -326,6 +336,52 @@ class SuggestionEngine:
             ]
 
         return []
+
+    # ── Initiative Promotion Suggestions ─────────────────────────
+
+    async def _initiative_promotion_suggestions(
+        self, entry: BrainEntry, entities: list[Entity]
+    ) -> list[Suggestion]:
+        """Suggest promoting project entities that aren't tracked as initiatives.
+
+        When a captured entry mentions a project (via project field or
+        project-type entities) that doesn't match any existing initiative,
+        suggest the user promote it to the strategy tab.
+        """
+        if not self.strategy_repo:
+            return []
+
+        suggestions: list[Suggestion] = []
+
+        # Collect project names to check
+        project_names: list[str] = []
+        if entry.project:
+            project_names.append(entry.project)
+        for entity in entities:
+            if (
+                entity.entity_type == EntityType.PROJECT
+                and entity.name not in project_names
+            ):
+                project_names.append(entity.name)
+
+        for name in project_names:
+            matches = await self.strategy_repo.find_initiatives_by_title(name)
+            if not matches:
+                suggestions.append(
+                    Suggestion(
+                        suggestion_type="promote_initiative",
+                        message=(
+                            f'"{name}" isn\'t tracked as a strategic initiative yet '
+                            f"— promote it to run the optionality engine on it?"
+                        ),
+                        related_entities=[
+                            e for e in entities if e.name.lower() == name.lower()
+                        ],
+                        action=f"promote_to_initiative:{name}",
+                    )
+                )
+
+        return suggestions
 
     # ── Utility ──────────────────────────────────────────────────
 

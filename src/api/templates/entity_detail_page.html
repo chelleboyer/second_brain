@@ -24,10 +24,26 @@
         </div>
         <div class="entry-actions">
             <button class="action-btn"
+                    hx-get="/entity/{{ entity.id }}/edit"
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    title="Edit entity">
+                ✏️ Edit
+            </button>
+            <button class="action-btn"
                     hx-post="/entity/{{ entity.id }}/summarize"
                     hx-target="#entity-summary-section"
                     hx-swap="innerHTML">
                 📝 Generate Summary
+            </button>
+            <button class="action-btn"
+                    hx-delete="/entity/{{ entity.id }}"
+                    hx-confirm="Delete this entity and all its mentions? This cannot be undone."
+                    hx-target="body"
+                    hx-swap="outerHTML"
+                    style="color: var(--color-red);"
+                    title="Delete entity">
+                🗑️ Delete
             </button>
             <span class="score">📊 {{ entity.entry_count }} entries</span>
         </div>

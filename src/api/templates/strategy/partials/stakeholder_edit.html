@@ -1,0 +1,66 @@
+<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="stakeholder-{{ stakeholder.id }}">
+    <form hx-put="/strategy/stakeholder/{{ stakeholder.id }}"
+          hx-target="#stakeholder-{{ stakeholder.id }}"
+          hx-swap="outerHTML">
+
+        <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem;">✏️ Edit Stakeholder</div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Name</label>
+                <input type="text" name="name" value="{{ stakeholder.name }}" required
+                       style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Role</label>
+                <input type="text" name="role" value="{{ stakeholder.role or '' }}"
+                       style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;"
+                       placeholder="e.g. VP Engineering">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Influence (1-10)</label>
+                <input type="number" name="influence_level" value="{{ stakeholder.influence_level }}" min="1" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Alignment (-5 to +5)</label>
+                <input type="number" name="alignment_score" value="{{ stakeholder.alignment_score }}" min="-5" max="5"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Dependency (1-10)</label>
+                <input type="number" name="dependency_on_you" value="{{ stakeholder.dependency_on_you }}" min="0" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Trust (1-10)</label>
+                <input type="number" name="trust_score" value="{{ stakeholder.trust_score }}" min="1" max="10"
+                       style="width:100%;padding:0.3rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);text-align:center;font-size:0.85rem;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Incentives</label>
+            <input type="text" name="incentives" value="{{ stakeholder.incentives or '' }}"
+                   style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;"
+                   placeholder="What drives this person?">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Notes</label>
+            <textarea name="notes" rows="2"
+                      style="width:100%;padding:0.4rem;border-radius:4px;border:1px solid var(--border-color);background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;resize:vertical;">{{ stakeholder.notes or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="submit" class="btn btn-primary" style="font-size: 0.8rem;">💾 Save</button>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem;"
+                    hx-get="/strategy/stakeholder/{{ stakeholder.id }}/card"
+                    hx-target="#stakeholder-{{ stakeholder.id }}"
+                    hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</div>

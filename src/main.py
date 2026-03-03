@@ -181,15 +181,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     app_state.summarization_service = summarization_service
     log.info("summarization_service_initialized")
 
-    # Phase 2: Initialize suggestion engine
-    suggestion_engine = SuggestionEngine(
-        entity_repo=entity_repo,
-        entry_repo=repository,
-        graph_service=graph_service,
-    )
-    app_state.suggestion_engine = suggestion_engine
-    log.info("suggestion_engine_initialized")
-
     # Phase II: Initialize strategic positioning services
     strategy_repo = StrategyRepository(database)
     app_state.strategy_repo = strategy_repo
@@ -207,6 +198,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     )
     app_state.strategic_simulator = strategic_simulator
     log.info("strategic_positioning_initialized")
+
+    # Phase 2: Initialize suggestion engine
+    suggestion_engine = SuggestionEngine(
+        entity_repo=entity_repo,
+        entry_repo=repository,
+        graph_service=graph_service,
+        strategy_repo=strategy_repo,
+    )
+    app_state.suggestion_engine = suggestion_engine
+    log.info("suggestion_engine_initialized")
 
     # Phase 4: Initialize Slack command handler
     slack_commands = SlackCommandHandler(
@@ -228,6 +229,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         entity_resolver=entity_resolver,
         entity_repo=entity_repo,
         suggestion_engine=suggestion_engine,
+        strategy_repo=strategy_repo,
     )
     app_state.pipeline = pipeline
 
