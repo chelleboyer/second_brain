@@ -24,6 +24,7 @@
             <a href="/strategy/initiatives" class="btn btn-secondary btn-sm">📋 Initiatives</a>
             <a href="/strategy/stakeholders" class="btn btn-secondary btn-sm">👥 Stakeholders</a>
             <a href="/strategy/assets" class="btn btn-secondary btn-sm">🏆 Assets</a>
+            <a href="/strategy/frictions" class="btn btn-secondary btn-sm">🔥 Frictions</a>
             <!-- Gear Menu -->
             <div x-data="{ open: false }" style="position:relative;">
                 <button @click="open = !open" class="btn btn-ghost btn-sm" title="Settings">⚙️</button>
@@ -87,7 +88,12 @@
             <span class="strat-chip__label">Assets</span>
         </div>
         <div class="strat-chip">
-            <span class="strat-chip__icon">🔭</span>
+            <span class="strat-chip__icon">�</span>
+            <span class="strat-chip__val">{{ summary.friction_count }}</span>
+            <span class="strat-chip__label">Frictions</span>
+        </div>
+        <div class="strat-chip">
+            <span class="strat-chip__icon">�🔭</span>
             <span class="strat-chip__val">{{ summary.visibility_distribution.get('market', 0) + summary.visibility_distribution.get('executive', 0) }}</span>
             <span class="strat-chip__label">Visible</span>
         </div>
@@ -258,15 +264,18 @@
 
                     <div class="strat-signal-row">
                         <label class="strat-signal-check">
-                            <input type="checkbox" name="advice_sought" value="true">
+                            <input type="checkbox" name="advice_sought" value="true"
+                                   onchange="this.closest('.strat-log-form').querySelector('.detail-advice').style.display=this.checked?'block':'none'">
                             <span>💬 Advice</span>
                         </label>
                         <label class="strat-signal-check">
-                            <input type="checkbox" name="decision_changed" value="true">
+                            <input type="checkbox" name="decision_changed" value="true"
+                                   onchange="this.closest('.strat-log-form').querySelector('.detail-decision').style.display=this.checked?'block':'none'">
                             <span>⚖️ Decision</span>
                         </label>
                         <label class="strat-signal-check">
-                            <input type="checkbox" name="framing_adopted" value="true">
+                            <input type="checkbox" name="framing_adopted" value="true"
+                                   onchange="this.closest('.strat-log-form').querySelector('.detail-framing').style.display=this.checked?'block':'none'">
                             <span>🧠 Framing</span>
                         </label>
                         <div style="display:flex;align-items:center;gap:0.35rem;">
@@ -276,7 +285,21 @@
                         </div>
                     </div>
 
-                    <textarea name="notes" placeholder="What happened this week..." rows="2"
+                    <!-- Per-signal detail inputs (shown when checkbox ticked) -->
+                    <div class="detail-advice" style="display:none;margin-top:0.4rem;">
+                        <input type="text" name="advice_detail" placeholder="What advice was sought? e.g. 'Asked about embedding model selection'"
+                               class="input" style="font-size:0.8rem;">
+                    </div>
+                    <div class="detail-decision" style="display:none;margin-top:0.4rem;">
+                        <input type="text" name="decision_detail" placeholder="What decision changed? e.g. 'Adopted build-vs-buy recommendation'"
+                               class="input" style="font-size:0.8rem;">
+                    </div>
+                    <div class="detail-framing" style="display:none;margin-top:0.4rem;">
+                        <input type="text" name="framing_detail" placeholder="What framing was adopted? e.g. 'Used &quot;cognitive systems&quot; in board deck'"
+                               class="input" style="font-size:0.8rem;">
+                    </div>
+
+                    <textarea name="notes" placeholder="General notes about this week (optional)..." rows="2"
                               class="input" style="font-size:0.85rem;resize:vertical;margin-top:0.5rem;"></textarea>
                     <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Log Week</button>
                 </form>
@@ -319,18 +342,39 @@
                     <div style="margin-bottom:1rem;">
                         <div class="strat-section-label">Signal Mix</div>
                         <div class="strat-signal-mix">
-                            <div class="strat-signal-mix__item" title="Advice sought {{ sb.advice_pct }}%">
+                            <div class="strat-signal-mix__item" title="Advice sought {{ sb.advice_pct }}%{% if sb.advice_details %} — {{ sb.advice_details[0].detail }}{% endif %}">
                                 <div class="strat-signal-mix__bar" style="width:{{ sb.advice_pct }}%;background:var(--accent);"></div>
                                 <span>💬 {{ sb.advice_pct }}%</span>
                             </div>
-                            <div class="strat-signal-mix__item" title="Decision changed {{ sb.decision_pct }}%">
+                            {% if sb.advice_details %}
+                            <div style="margin:-0.25rem 0 0.35rem 1rem;font-size:0.7rem;color:var(--text-muted);">
+                                {% for a in sb.advice_details[:2] %}
+                                <div>• {{ a.detail | truncate(60) }}{% if a.stakeholder != 'Unattributed' %} — {{ a.stakeholder }}{% endif %}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="strat-signal-mix__item" title="Decision changed {{ sb.decision_pct }}%{% if sb.decision_details %} — {{ sb.decision_details[0].detail }}{% endif %}">
                                 <div class="strat-signal-mix__bar" style="width:{{ sb.decision_pct }}%;background:var(--green);"></div>
                                 <span>⚖️ {{ sb.decision_pct }}%</span>
                             </div>
-                            <div class="strat-signal-mix__item" title="Framing adopted {{ sb.framing_pct }}%">
+                            {% if sb.decision_details %}
+                            <div style="margin:-0.25rem 0 0.35rem 1rem;font-size:0.7rem;color:var(--text-muted);">
+                                {% for d in sb.decision_details[:2] %}
+                                <div>• {{ d.detail | truncate(60) }}{% if d.stakeholder != 'Unattributed' %} — {{ d.stakeholder }}{% endif %}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="strat-signal-mix__item" title="Framing adopted {{ sb.framing_pct }}%{% if sb.framing_details %} — {{ sb.framing_details[0].detail }}{% endif %}">
                                 <div class="strat-signal-mix__bar" style="width:{{ sb.framing_pct }}%;background:var(--purple);"></div>
                                 <span>🧠 {{ sb.framing_pct }}%</span>
                             </div>
+                            {% if sb.framing_details %}
+                            <div style="margin:-0.25rem 0 0.35rem 1rem;font-size:0.7rem;color:var(--text-muted);">
+                                {% for f in sb.framing_details[:2] %}
+                                <div>• {{ f.detail | truncate(60) }}{% if f.stakeholder != 'Unattributed' %} — {{ f.stakeholder }}{% endif %}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 

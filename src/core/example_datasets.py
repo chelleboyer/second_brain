@@ -12,6 +12,7 @@ from src.models.enums import (
     VisibilityLevel,
 )
 from src.models.strategy import (
+    Friction,
     InfluenceDelta,
     Initiative,
     InitiativeScores,
@@ -206,6 +207,7 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-05",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Feedback on vector store migration approach — Pinecone vs Qdrant tradeoffs",
         consultation_count=1,
         stakeholder_name="Jasmine Torres",
         notes="Jasmine asked for feedback on vector store migration approach.",
@@ -213,6 +215,7 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-12",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Embedding model selection for platform roadmap — recommended E5-large over Ada",
         consultation_count=2,
         stakeholder_name="David Chen",
         notes="David asked about embedding model selection for platform roadmap.",
@@ -220,6 +223,7 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-19",
         advice_sought=False, decision_changed=False, framing_adopted=True,
+        framing_detail="'Cognitive systems' framing referenced in leadership sync by Marcus",
         consultation_count=1,
         stakeholder_name="Marcus Wright",
         notes="Marcus referenced my 'cognitive systems' framing in leadership sync.",
@@ -227,6 +231,8 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-26",
         advice_sought=True, decision_changed=True, framing_adopted=False,
+        advice_detail="Build-vs-buy analysis for RAG vendor decision — recommended building in-house",
+        decision_detail="Priya adopted build-vs-buy recommendation, cancelled vendor RFP",
         consultation_count=3,
         stakeholder_name="Priya Kapoor",
         notes="Priya adopted my build-vs-buy analysis for the RAG vendor decision.",
@@ -234,6 +240,7 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-02",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Scaling retrieval infrastructure — recommended sharding strategy for 10M+ docs",
         consultation_count=2,
         stakeholder_name="David Chen",
         notes="David asked about scaling retrieval infrastructure. Second consult this month.",
@@ -241,6 +248,9 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-09",
         advice_sought=True, decision_changed=True, framing_adopted=True,
+        advice_detail="Embedding pipeline architecture review — hybrid sparse+dense approach",
+        decision_detail="Product review shifted to phased rollout based on my risk assessment",
+        framing_detail="'Compound leverage' framing used by Priya in product review presentation",
         consultation_count=3,
         stakeholder_name="Priya Kapoor",
         notes="Priya used my 'compound leverage' framing in her product review. Strong alignment.",
@@ -248,6 +258,7 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-16",
         advice_sought=False, decision_changed=False, framing_adopted=True,
+        framing_detail="'Cognitive system' framing used in board deck — positioned AI work as strategic capability",
         consultation_count=1,
         stakeholder_name="Marcus Wright",
         notes="Marcus used 'cognitive system' framing in board deck. High visibility win.",
@@ -255,6 +266,9 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-23",
         advice_sought=True, decision_changed=True, framing_adopted=True,
+        advice_detail="Architecture reviews for David's team — recommended event-driven ingestion pipeline",
+        decision_detail="David's team restructured pipeline architecture based on review recommendations",
+        framing_detail="'Strategic infrastructure' framing adopted for Q2 planning discussions",
         consultation_count=4,
         stakeholder_name="David Chen",
         notes="Strong week. Tech talk generated multiple follow-up conversations. David's team requesting architecture reviews.",
@@ -262,9 +276,103 @@ CORPORATE_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-03-02",
         advice_sought=True, decision_changed=True, framing_adopted=True,
+        advice_detail="Exec planning consultation — shaped Q3 AI roadmap priorities and sequencing",
+        decision_detail="Q3 roadmap restructured: moved cognitive system tracks from P2 to P0",
+        framing_detail="'Compound leverage' + 'cognitive systems' framing anchored exec planning narrative",
         consultation_count=5,
         stakeholder_name="Priya Kapoor",
         notes="Peak influence. Priya brought me into exec planning for Q3 AI roadmap. 5 separate consultations across 3 teams.",
+    ),
+]
+
+CORPORATE_FRICTIONS = [
+    Friction(
+        title="Platform migration blocked by undocumented dependencies",
+        description="Legacy services have hidden consumers and undocumented integrations that surface only during migration attempts.",
+        category="Infrastructure",
+        severity=5,
+        frequency=4,
+        blast_radius=4,
+        owner_role="Platform Engineering",
+        affected_stakeholders=["David Chen", "Marcus Wright"],
+        related_initiatives=["Legacy Platform Migration"],
+        signals=[
+            "Migration dry-runs reveal unknown callers",
+            "Services fail in staging that pass in prod",
+            "No service ownership registry exists",
+        ],
+        countermeasures=[
+            "Service dependency graph + ownership map",
+            "Traffic shadowing before cutover",
+            "Incremental migration with rollback gates",
+        ],
+        notes="Classic invisible-cliff problem. Map it before you move it.",
+    ),
+    Friction(
+        title="AI initiative scope creep (everyone wants 'AI' on their roadmap)",
+        description="Every team wants to claim AI work, creating conflicting priorities and diluting engineering focus.",
+        category="Org Design",
+        severity=4,
+        frequency=5,
+        blast_radius=4,
+        owner_role="Engineering Leadership",
+        affected_stakeholders=["David Chen", "Priya Kapoor", "Ryan Liu"],
+        related_initiatives=["Cognitive RAG Platform"],
+        signals=[
+            "Multiple teams building overlapping AI features",
+            "No shared evaluation framework for model quality",
+            "Priority conflicts between product AI and platform AI",
+        ],
+        countermeasures=[
+            "Centralized AI capability registry",
+            "Shared evaluation benchmarks + model catalog",
+            "Explicit intake process for AI feature requests",
+        ],
+        notes="AI is the new blockchain — everyone wants credit, nobody wants coordination.",
+    ),
+    Friction(
+        title="Cross-team API contract drift",
+        description="Internal APIs evolve without versioning or consumer notification, causing integration failures.",
+        category="Delivery",
+        severity=4,
+        frequency=4,
+        blast_radius=3,
+        owner_role="Platform / Backend Teams",
+        affected_stakeholders=["David Chen", "Jasmine Torres"],
+        related_initiatives=["Developer Experience Improvements"],
+        signals=[
+            "Breaking changes discovered in CI, not in design review",
+            "Teams pin to old API versions indefinitely",
+            "No API changelog or deprecation policy",
+        ],
+        countermeasures=[
+            "Contract-first API design with OpenAPI specs",
+            "Automated breaking-change detection in CI",
+            "Deprecation policy with migration windows",
+        ],
+        notes="If your API contract lives in Slack threads, it's not a contract.",
+    ),
+    Friction(
+        title="Incident response pulls senior engineers off project work",
+        description="On-call and incident response consistently disrupts planned project work, especially for senior ICs.",
+        category="Capacity",
+        severity=4,
+        frequency=5,
+        blast_radius=4,
+        owner_role="Engineering Management",
+        affected_stakeholders=["David Chen", "Jasmine Torres", "Marcus Wright"],
+        related_initiatives=[],
+        signals=[
+            "Sprint velocity drops during on-call rotations",
+            "Same engineers always pulled into incidents",
+            "Post-incident action items never get prioritized",
+        ],
+        countermeasures=[
+            "Dedicated on-call rotation with project-free weeks",
+            "Runbook-first incident response",
+            "Post-incident items auto-added to sprint backlog",
+        ],
+        notes="Throughput is a system property, not a motivation problem.",
     ),
 ]
 
@@ -543,6 +651,7 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-12",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Newsletter positioning — should I niche down to AI tooling or stay broad?",
         consultation_count=1,
         stakeholder_name="Alex (Mentor)",
         notes="Monthly call with Alex. Asked for feedback on newsletter positioning.",
@@ -550,6 +659,7 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-19",
         advice_sought=False, decision_changed=True, framing_adopted=False,
+        decision_detail="Taylor's agency adopted my automation workflow for their client reporting pipeline",
         consultation_count=1,
         stakeholder_name="Taylor (Past Client)",
         notes="Taylor's agency adopted my automation approach for their client reporting.",
@@ -557,6 +667,7 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-01-26",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Project pricing strategy — value-based vs hourly for Sam's new AI project",
         consultation_count=2,
         stakeholder_name="Sam (Freelance Partner)",
         notes="Sam asked for advice on pricing a new project. Newsletter got 2 reply-alls from readers.",
@@ -564,6 +675,7 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-02",
         advice_sought=True, decision_changed=False, framing_adopted=False,
+        advice_detail="Tool recommendation for Alex's mentee — suggested n8n over Zapier for AI workflows",
         consultation_count=1,
         stakeholder_name="Alex (Mentor)",
         notes="Mentor asked my opinion on a tool recommendation for one of their mentees.",
@@ -571,6 +683,7 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-09",
         advice_sought=False, decision_changed=True, framing_adopted=False,
+        decision_detail="Taylor's agency expanded my automation approach to a second client engagement",
         consultation_count=2,
         stakeholder_name="Taylor (Past Client)",
         notes="Taylor's agency adopted my automation approach for a second client. New subscriber said they found me through a retweet.",
@@ -578,6 +691,8 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-16",
         advice_sought=True, decision_changed=False, framing_adopted=True,
+        advice_detail="Casey asked about project evaluation criteria for their side projects",
+        framing_detail="Casey started using my 'optionality scoring' framework for evaluating their own side projects",
         consultation_count=3,
         stakeholder_name="Casey (Accountability Partner)",
         notes="Casey started using my 'optionality scoring' framework for their own projects. LinkedIn post got 1,200 impressions.",
@@ -585,6 +700,9 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-02-23",
         advice_sought=True, decision_changed=True, framing_adopted=True,
+        advice_detail="Inbound consulting inquiries — 2 strangers asked about AI implementation strategy",
+        decision_detail="Blog post drove a micro-influencer to change their recommended tooling stack",
+        framing_detail="'Compound leverage' framing picked up and quoted in AI community thread",
         consultation_count=3,
         stakeholder_name="Jordan (Newsletter Audience)",
         notes="Best week yet. Blog post shared by a micro-influencer in the AI space. 2 inbound consulting inquiries from strangers.",
@@ -592,9 +710,81 @@ PERSONAL_INFLUENCE = [
     InfluenceDelta(
         week_start="2026-03-02",
         advice_sought=True, decision_changed=True, framing_adopted=True,
+        advice_detail="Alex referred a paying client based on my newsletter authority in AI automation",
+        decision_detail="Referred client chose my approach over two other consultants Alex considered",
+        framing_detail="Casey's audience cross-promoting content using my 'second brain' framing",
         consultation_count=4,
         stakeholder_name="Alex (Mentor)",
         notes="Alex referred a paying client. Newsletter hit 900 subscribers. Casey's audience is now cross-promoting my content.",
+    ),
+]
+
+PERSONAL_FRICTIONS = [
+    Friction(
+        title="Content creation vs. client work time conflict",
+        description="Writing, recording, and publishing consistently competes with billable client hours.",
+        category="Capacity",
+        severity=4,
+        frequency=5,
+        blast_radius=4,
+        owner_role="Self",
+        affected_stakeholders=["Alex (Mentor)", "Casey (Creator Peer)"],
+        related_initiatives=["AI Automation Newsletter"],
+        signals=[
+            "Newsletter cadence slips during busy client weeks",
+            "Content quality drops when rushed",
+            "Audience growth stalls during delivery sprints",
+        ],
+        countermeasures=[
+            "Batch content creation on dedicated days",
+            "Repurpose client learnings into content",
+            "Build a 2-week content buffer",
+        ],
+        notes="The compound returns from content only work if you ship consistently.",
+    ),
+    Friction(
+        title="Pricing ambiguity on consulting engagements",
+        description="Without standardized packages, every engagement starts with a custom scoping conversation that drains time.",
+        category="Operations",
+        severity=3,
+        frequency=4,
+        blast_radius=3,
+        owner_role="Self",
+        affected_stakeholders=["Alex (Mentor)"],
+        related_initiatives=["Strategic Consulting Framework"],
+        signals=[
+            "Prospects ghost after receiving custom proposals",
+            "Scope creep on flat-fee engagements",
+            "Time spent on proposals that don't convert",
+        ],
+        countermeasures=[
+            "Productized service tiers (audit / build / advise)",
+            "Published pricing anchors on website",
+            "Scope boundary templates with change-order process",
+        ],
+        notes="Price the transformation, not the time.",
+    ),
+    Friction(
+        title="Side project shipping paralysis (too many ideas, not enough launches)",
+        description="Multiple side projects compete for attention; none reach launch because the next idea feels more exciting.",
+        category="Delivery",
+        severity=4,
+        frequency=4,
+        blast_radius=3,
+        owner_role="Self",
+        affected_stakeholders=["Casey (Creator Peer)", "Jordan (Accountability Partner)"],
+        related_initiatives=["Second Brain CLI Tool"],
+        signals=[
+            "GitHub repos with initial commits but no releases",
+            "Excitement fades after architecture phase",
+            "No public launch dates or accountability deadlines",
+        ],
+        countermeasures=[
+            "One active side project at a time (strict WIP=1)",
+            "Public build-in-public commitments",
+            "Weekly accountability check-ins with Jordan",
+        ],
+        notes="Shipping beats perfection. Every. Single. Time.",
     ),
 ]
 
@@ -611,6 +801,7 @@ DATASETS = {
         "initiatives": CORPORATE_INITIATIVES,
         "assets": CORPORATE_ASSETS,
         "influence": CORPORATE_INFLUENCE,
+        "frictions": CORPORATE_FRICTIONS,
     },
     "personal": {
         "label": "Personal / Solopreneur",
@@ -619,6 +810,7 @@ DATASETS = {
         "initiatives": PERSONAL_INITIATIVES,
         "assets": PERSONAL_ASSETS,
         "influence": PERSONAL_INFLUENCE,
+        "frictions": PERSONAL_FRICTIONS,
     },
 }
 
@@ -670,6 +862,11 @@ async def load_example_dataset(
         await repo.save_influence_delta(d)
     counts["influence_deltas"] = len(dataset["influence"])
 
+    # Frictions
+    for f in dataset.get("frictions", []):
+        await repo.save_friction(f)
+    counts["frictions"] = len(dataset.get("frictions", []))
+
     log.info("example_dataset_loaded", dataset=dataset_key, counts=counts)
     return counts
 
@@ -681,6 +878,7 @@ async def _clear_all_strategy_data(repo: StrategyRepository) -> None:
         await conn.execute("DELETE FROM influence_deltas")
         await conn.execute("DELETE FROM initiative_links")
         await conn.execute("DELETE FROM strategic_assets")
+        await conn.execute("DELETE FROM frictions")
         await conn.execute("DELETE FROM initiatives")
         await conn.execute("DELETE FROM stakeholders")
         await conn.commit()

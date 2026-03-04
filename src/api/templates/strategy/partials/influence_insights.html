@@ -40,17 +40,53 @@
                 <div class="strat-section-label">🎯 Signal Breakdown</div>
                 {% set sb = ins.signal_breakdown %}
                 <div style="font-size:0.8rem;">
-                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
-                        <span>💬 Advice sought</span>
-                        <span><strong>{{ sb.advice_sought }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.advice_pct }}%)</span></span>
+                    <div style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <div style="display:flex;justify-content:space-between;">
+                            <span>💬 Advice sought</span>
+                            <span><strong>{{ sb.advice_sought }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.advice_pct }}%)</span></span>
+                        </div>
+                        {% if sb.advice_details %}
+                        <div style="margin:0.2rem 0 0.15rem 1.2rem;font-size:0.72rem;color:var(--text-muted);">
+                            {% for a in sb.advice_details[:3] %}
+                            <div style="line-height:1.5;">• {{ a.detail }}{% if a.stakeholder != 'Unattributed' %} <span style="opacity:0.6;">— {{ a.stakeholder }}</span>{% endif %}</div>
+                            {% endfor %}
+                            {% if sb.advice_details | length > 3 %}
+                            <div style="opacity:0.5;">+ {{ sb.advice_details | length - 3 }} more</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
-                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
-                        <span>⚖️ Decision changed</span>
-                        <span><strong>{{ sb.decision_changed }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.decision_pct }}%)</span></span>
+                    <div style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <div style="display:flex;justify-content:space-between;">
+                            <span>⚖️ Decision changed</span>
+                            <span><strong>{{ sb.decision_changed }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.decision_pct }}%)</span></span>
+                        </div>
+                        {% if sb.decision_details %}
+                        <div style="margin:0.2rem 0 0.15rem 1.2rem;font-size:0.72rem;color:var(--text-muted);">
+                            {% for d in sb.decision_details[:3] %}
+                            <div style="line-height:1.5;">• {{ d.detail }}{% if d.stakeholder != 'Unattributed' %} <span style="opacity:0.6;">— {{ d.stakeholder }}</span>{% endif %}</div>
+                            {% endfor %}
+                            {% if sb.decision_details | length > 3 %}
+                            <div style="opacity:0.5;">+ {{ sb.decision_details | length - 3 }} more</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
-                    <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
-                        <span>🧠 Framing adopted</span>
-                        <span><strong>{{ sb.framing_adopted }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.framing_pct }}%)</span></span>
+                    <div style="padding:0.25rem 0;border-bottom:1px solid var(--border);">
+                        <div style="display:flex;justify-content:space-between;">
+                            <span>🧠 Framing adopted</span>
+                            <span><strong>{{ sb.framing_adopted }}</strong> <span style="color:var(--text-muted);font-size:0.7rem;">({{ sb.framing_pct }}%)</span></span>
+                        </div>
+                        {% if sb.framing_details %}
+                        <div style="margin:0.2rem 0 0.15rem 1.2rem;font-size:0.72rem;color:var(--text-muted);">
+                            {% for f in sb.framing_details[:3] %}
+                            <div style="line-height:1.5;">• {{ f.detail }}{% if f.stakeholder != 'Unattributed' %} <span style="opacity:0.6;">— {{ f.stakeholder }}</span>{% endif %}</div>
+                            {% endfor %}
+                            {% if sb.framing_details | length > 3 %}
+                            <div style="opacity:0.5;">+ {{ sb.framing_details | length - 3 }} more</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                     <div style="display:flex;justify-content:space-between;padding:0.25rem 0;">
                         <span>🤝 Total consultations</span>

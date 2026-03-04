@@ -14,9 +14,9 @@
     <span class="strat-inf-row__stakeholder">{{ delta.stakeholder_name }}</span>
     {% endif %}
     <span class="strat-inf-row__signals">
-        {% if delta.advice_sought %}<span title="Advice sought (+2)">💬</span>{% endif %}
-        {% if delta.decision_changed %}<span title="Decision changed (+3)">⚖️</span>{% endif %}
-        {% if delta.framing_adopted %}<span title="Framing adopted (+3)">🧠</span>{% endif %}
+        {% if delta.advice_sought %}<span title="💬 {{ delta.advice_detail or 'Advice sought' }} (+2)">💬</span>{% endif %}
+        {% if delta.decision_changed %}<span title="⚖️ {{ delta.decision_detail or 'Decision changed' }} (+3)">⚖️</span>{% endif %}
+        {% if delta.framing_adopted %}<span title="🧠 {{ delta.framing_detail or 'Framing adopted' }} (+3)">🧠</span>{% endif %}
         {% if delta.consultation_count > 0 %}<span title="{{ delta.consultation_count }} consults (up to +4)">🤝{{ delta.consultation_count }}</span>{% endif %}
     </span>
     <span class="strat-inf-row__breakdown">
@@ -28,4 +28,27 @@
         {{ parts | join(' ') }}{% if delta.delta_score == 10 %} ⊤{% endif %}
     </span>
 </div>
+{% set has_details = delta.advice_detail or delta.decision_detail or delta.framing_detail or delta.notes %}
+{% if has_details %}
+<div class="strat-inf-row__details" style="padding:0 0.75rem 0.5rem 1.5rem;font-size:0.78rem;color:var(--text-muted);line-height:1.5;">
+    {% if delta.advice_detail %}
+    <div style="display:flex;gap:0.35rem;align-items:baseline;">
+        <span>💬</span><span>{{ delta.advice_detail }}</span>
+    </div>
+    {% endif %}
+    {% if delta.decision_detail %}
+    <div style="display:flex;gap:0.35rem;align-items:baseline;">
+        <span>⚖️</span><span>{{ delta.decision_detail }}</span>
+    </div>
+    {% endif %}
+    {% if delta.framing_detail %}
+    <div style="display:flex;gap:0.35rem;align-items:baseline;">
+        <span>🧠</span><span>{{ delta.framing_detail }}</span>
+    </div>
+    {% endif %}
+    {% if delta.notes %}
+    <div style="margin-top:0.2rem;font-style:italic;">{{ delta.notes }}</div>
+    {% endif %}
+</div>
+{% endif %}
 

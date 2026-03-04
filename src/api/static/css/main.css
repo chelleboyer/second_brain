@@ -1277,6 +1277,34 @@ a:hover { color: var(--accent-hover); }
 .btn-ghost:hover { color: var(--text); background: var(--bg-hover); }
 
 .btn-sm { padding: var(--sp-1) var(--sp-3); font-size: 0.78rem; }
+.btn-xs { padding: 0.15rem 0.4rem; font-size: 0.68rem; border-radius: 4px; }
+
+/* Inline action buttons for simulation items */
+.btn-inline-action {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.6rem;
+    padding: 0.05rem 0.2rem;
+    opacity: 0.4;
+    transition: opacity 0.15s, background 0.15s;
+    line-height: 1;
+}
+.btn-inline-action:hover {
+    opacity: 1;
+    background: var(--bg-hover);
+}
+.strat-sim__list li:hover .strat-sim__item-actions {
+    opacity: 1;
+}
+.strat-sim__item-actions {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.strat-sim__list li:hover .strat-sim__item-actions {
+    opacity: 1;
+}
 
 /* ── Form Inputs ───────────────────────────────────────────────── */
 .input {

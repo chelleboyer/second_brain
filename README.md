@@ -107,13 +107,14 @@ On startup the app initializes SQLite, connects to Qdrant Cloud, runs a Slack ca
 - **Initiative scoring** — 5-question Move Evaluation Engine rates every project on authority, asymmetric info, future mobility, reusable leverage, and visibility (0–25 scale → Maintenance / Supportive / Strategic)
 - **Stakeholder mapping** — Track influence level, alignment, dependency, and trust for key people
 - **Strategic assets** — Score reputation assets (reusability, signaling, market relevance, compounding) and optionality assets (portability, market demand, monetization, deploy speed)
+- **Friction tracking** — Identify and score organizational frictions by severity, frequency, and blast radius; link to affected stakeholders and related initiatives; track signals and countermeasures
 - **Influence tracking** — Weekly logs of advice sought, decisions changed, framing adopted; auto-computed trend
 - **Weekly simulation** — LLM-driven (with rule-based fallback) strategic review that outputs one strategic move, maintenance tasks, and position-building priorities
-- **Full CRUD** — Inline edit forms for initiatives (scores, status, visibility), stakeholders (all metrics), and assets (all scores); delete any item from its card
+- **Full CRUD** — Inline edit forms for initiatives (scores, status, visibility), stakeholders (all metrics), assets (all scores), and frictions (all fields); delete any item from its card
 - **Initiative promotion** — Suggestion engine recommends promoting unlinked project entities into scored initiatives
 - **Factory reset** — One-click nuke of all data (SQLite + Qdrant vectors) from the Strategy dashboard, with confirmation
 - **Strategy dashboard** (`/strategy`) — KPI meters, visibility matrix, simulation runner, influence history, and **Load Examples** button with pre-built datasets (Corporate Engineer or Personal/Solopreneur)
-- **Tile-based sub-pages** — Initiatives, Stakeholders, and Assets each render as card grids with filter chips, category counts, and quick-action buttons; built on a `strat-*` CSS design system
+- **Tile-based sub-pages** — Initiatives, Stakeholders, Assets, and Frictions each render as card grids with filter chips, category counts, and quick-action buttons; built on a `strat-*` CSS design system
 
 ### Eval Harness
 
@@ -166,7 +167,7 @@ Slack ──poll──▶ Collector ──▶ Pipeline ──▶ Classifier (HF 
 | Move Evaluator | `src/core/evaluation.py` | 5-dimension initiative scoring engine |
 | Influence Tracker | `src/core/evaluation.py` | Weekly influence delta tracking and trending |
 | Strategic Simulator | `src/core/simulation.py` | Weekly strategic simulation protocol |
-| Strategy Repository | `src/storage/strategy_repository.py` | Stakeholder, initiative, asset, influence persistence |
+| Strategy Repository | `src/storage/strategy_repository.py` | Stakeholder, initiative, asset, friction, influence persistence |
 | Repository | `src/storage/repository.py` | SQLite CRUD with FTS5 search |
 | Vector Store | `src/retrieval/vector_store.py` | Qdrant embedding storage and similarity search |
 | Routes | `src/api/routes.py` | All FastAPI route handlers |
@@ -189,7 +190,7 @@ LOG_LEVEL=DEBUG second-brain  # Debug logging
 python -m scripts.seed_strategy_demo
 ```
 
-Populates the strategy engine with example stakeholders, initiatives, assets, and influence records for exploring the dashboard. You can also load example datasets directly from the UI — click **📦 Load Examples** on the Strategy dashboard and choose between:
+Populates the strategy engine with example stakeholders, initiatives, assets, influence records, and frictions for exploring the dashboard. You can also load example datasets directly from the UI — click **📦 Load Examples** on the Strategy dashboard and choose between:
 
 - **Personal / Solopreneur** — Freelancer building audience, shipping side projects, and growing consulting revenue
 - **Corporate Engineer** — Senior engineer navigating corporate influence, visibility, and career positioning

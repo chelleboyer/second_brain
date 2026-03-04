@@ -58,6 +58,7 @@ class Database:
             "entity_summaries",
             "influence_deltas",
             "weekly_simulations",
+            "frictions",
             "strategic_assets",
             "initiatives",
             "stakeholders",
@@ -313,8 +314,11 @@ class Database:
                     stakeholder_id TEXT,
                     stakeholder_name TEXT,
                     advice_sought INTEGER NOT NULL DEFAULT 0,
+                    advice_detail TEXT NOT NULL DEFAULT '',
                     decision_changed INTEGER NOT NULL DEFAULT 0,
+                    decision_detail TEXT NOT NULL DEFAULT '',
                     framing_adopted INTEGER NOT NULL DEFAULT 0,
+                    framing_detail TEXT NOT NULL DEFAULT '',
                     consultation_count INTEGER NOT NULL DEFAULT 0,
                     notes TEXT NOT NULL DEFAULT '',
                     delta_score INTEGER NOT NULL DEFAULT 0,
@@ -348,6 +352,32 @@ class Database:
                 ON weekly_simulations(week_start)
             """)
 
+            # Frictions — operational/organizational pain points
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS frictions (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    category TEXT NOT NULL DEFAULT '',
+                    severity INTEGER NOT NULL DEFAULT 3,
+                    frequency INTEGER NOT NULL DEFAULT 3,
+                    blast_radius INTEGER NOT NULL DEFAULT 3,
+                    owner_role TEXT NOT NULL DEFAULT '',
+                    affected_stakeholders TEXT NOT NULL DEFAULT '[]',
+                    related_initiatives TEXT NOT NULL DEFAULT '[]',
+                    signals TEXT NOT NULL DEFAULT '[]',
+                    countermeasures TEXT NOT NULL DEFAULT '[]',
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_frictions_category
+                ON frictions(category)
+            """)
+
             # ── Migrations: add columns to existing tables ───────
             # SQLite's CREATE TABLE IF NOT EXISTS won't add new columns
             # to an already-existing table, so we ALTER TABLE instead.
@@ -362,6 +392,9 @@ class Database:
                 ("initiatives", "initiative_type", "TEXT NOT NULL DEFAULT 'scored'"),
                 ("influence_deltas", "stakeholder_id", "TEXT"),
                 ("influence_deltas", "stakeholder_name", "TEXT"),
+                ("influence_deltas", "advice_detail", "TEXT NOT NULL DEFAULT ''"),
+                ("influence_deltas", "decision_detail", "TEXT NOT NULL DEFAULT ''"),
+                ("influence_deltas", "framing_detail", "TEXT NOT NULL DEFAULT ''"),
             ]
             for table, column, col_type in migration_columns:
                 try:

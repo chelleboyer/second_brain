@@ -1,0 +1,106 @@
+<div class="strat-card" id="friction-{{ friction.id }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.3rem;flex-wrap:wrap;">
+                {% if friction.category %}
+                <span class="strat-badge strat-badge--muted" style="font-size:0.65rem;">{{ friction.category }}</span>
+                {% endif %}
+                {% if friction.owner_role %}
+                <span class="strat-badge strat-badge--muted" style="font-size:0.65rem;">👤 {{ friction.owner_role }}</span>
+                {% endif %}
+            </div>
+            <div style="font-weight:600;font-size:0.95rem;">🔥 {{ friction.title }}</div>
+            {% if friction.description %}
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0.25rem 0 0;line-height:1.4;">
+                {{ friction.description[:150] }}{% if friction.description|length > 150 %}…{% endif %}
+            </p>
+            {% endif %}
+        </div>
+        <div style="text-align:center;min-width:48px;">
+            <div style="font-size:1.1rem;font-weight:700;
+                {% if friction.impact_score >= 4 %}color:var(--red);
+                {% elif friction.impact_score >= 3 %}color:var(--gold);
+                {% else %}color:var(--text-muted);{% endif %}">
+                {{ '%.1f' % friction.impact_score }}
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">Impact</div>
+        </div>
+    </div>
+
+    <div class="strat-card__stats" style="margin-top:0.5rem;">
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val"
+                 style="{% if friction.severity >= 4 %}color:var(--red);{% elif friction.severity >= 3 %}color:var(--gold);{% endif %}">
+                {{ friction.severity }}
+            </div>
+            <div class="strat-card__stat-lbl">Severity</div>
+        </div>
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val">{{ friction.frequency }}</div>
+            <div class="strat-card__stat-lbl">Frequency</div>
+        </div>
+        <div class="strat-card__stat">
+            <div class="strat-card__stat-val">{{ friction.blast_radius }}</div>
+            <div class="strat-card__stat-lbl">Blast Radius</div>
+        </div>
+    </div>
+
+    {% if friction.signals %}
+    <div style="margin-top:0.5rem;">
+        <div style="font-size:0.7rem;font-weight:600;color:var(--text-muted);margin-bottom:0.2rem;">Signals</div>
+        {% for signal in friction.signals[:3] %}
+        <div style="font-size:0.75rem;color:var(--text-muted);padding-left:0.5rem;line-height:1.45;">
+            ⚡ {{ signal }}
+        </div>
+        {% endfor %}
+        {% if friction.signals | length > 3 %}
+        <div style="font-size:0.7rem;color:var(--text-muted);padding-left:0.5rem;">…+{{ friction.signals | length - 3 }} more</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if friction.countermeasures %}
+    <div style="margin-top:0.4rem;">
+        <div style="font-size:0.7rem;font-weight:600;color:var(--text-muted);margin-bottom:0.2rem;">Countermeasures</div>
+        {% for cm in friction.countermeasures[:3] %}
+        <div style="font-size:0.75rem;color:var(--green);padding-left:0.5rem;line-height:1.45;">
+            ✅ {{ cm }}
+        </div>
+        {% endfor %}
+        {% if friction.countermeasures | length > 3 %}
+        <div style="font-size:0.7rem;color:var(--text-muted);padding-left:0.5rem;">…+{{ friction.countermeasures | length - 3 }} more</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if friction.affected_stakeholders %}
+    <div style="margin-top:0.4rem;display:flex;gap:0.25rem;flex-wrap:wrap;">
+        {% for s in friction.affected_stakeholders %}
+        <span style="font-size:0.65rem;padding:0.1rem 0.35rem;background:var(--surface-raised);border-radius:4px;color:var(--text-muted);">{{ s }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if friction.notes %}
+    <div style="margin-top:0.35rem;font-size:0.75rem;color:var(--text-muted);font-style:italic;">
+        {{ friction.notes[:120] }}{% if friction.notes|length > 120 %}…{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="strat-card__meta" style="margin-top:0.5rem;">
+        {% if friction.related_initiatives %}
+        <span style="font-size:0.7rem;">📋 {{ friction.related_initiatives | length }} initiative{{ 's' if friction.related_initiatives | length > 1 }}</span>
+        {% endif %}
+        <span style="margin-left:auto;display:flex;gap:0.4rem;">
+            <button hx-get="/strategy/friction/{{ friction.id }}/edit"
+                    hx-target="#friction-{{ friction.id }}"
+                    hx-swap="outerHTML"
+                    class="strat-card__action" title="Edit friction">✏️</button>
+            <button hx-delete="/strategy/friction/{{ friction.id }}"
+                    hx-target="#friction-{{ friction.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Remove this friction?"
+                    class="strat-card__action strat-card__action--danger">🗑️</button>
+        </span>
+    </div>
+</div>

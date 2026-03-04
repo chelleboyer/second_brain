@@ -246,8 +246,11 @@ class InfluenceDelta(BaseModel):
     stakeholder_id: str | None = None  # UUID string of related stakeholder
     stakeholder_name: str | None = None  # Denormalized for display
     advice_sought: bool = False
+    advice_detail: str = ""  # What specific advice was sought
     decision_changed: bool = False
+    decision_detail: str = ""  # What decision changed and how
     framing_adopted: bool = False
+    framing_detail: str = ""  # What framing was adopted and where
     consultation_count: int = Field(default=0, ge=0)
     notes: str = ""
     delta_score: int = Field(default=0, ge=-10, le=10)
@@ -273,13 +276,63 @@ class InfluenceDeltaCreate(BaseModel):
     week_start: str
     stakeholder_id: str | None = None  # UUID string of related stakeholder
     advice_sought: bool = False
+    advice_detail: str = ""  # What specific advice was sought
     decision_changed: bool = False
+    decision_detail: str = ""  # What decision changed and how
     framing_adopted: bool = False
+    framing_detail: str = ""  # What framing was adopted and where
     consultation_count: int = Field(default=0, ge=0)
     notes: str = ""
 
 
 # ── Weekly Simulation ────────────────────────────────────────────
+
+
+class Friction(BaseModel):
+    """An organizational or operational friction point.
+
+    Tracks recurring pain points, their severity, and relationships
+    to stakeholders and initiatives. Frictions surface what is
+    slowing things down and connect to countermeasures.
+    """
+
+    id: UUID = Field(default_factory=uuid4)
+    title: str
+    description: str = ""
+    category: str = ""  # e.g. Operations, Data Quality, Delivery, Infrastructure
+    severity: int = Field(default=3, ge=1, le=5)
+    frequency: int = Field(default=3, ge=1, le=5)
+    blast_radius: int = Field(default=3, ge=1, le=5)
+    owner_role: str = ""
+    affected_stakeholders: list[str] = Field(default_factory=list)
+    related_initiatives: list[str] = Field(default_factory=list)
+    signals: list[str] = Field(default_factory=list)
+    countermeasures: list[str] = Field(default_factory=list)
+    notes: str = ""
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+    @property
+    def impact_score(self) -> float:
+        """Composite impact score (1-5). Weighted average of severity, frequency, and blast radius."""
+        return round((self.severity * 0.4 + self.frequency * 0.3 + self.blast_radius * 0.3), 1)
+
+
+class FrictionCreate(BaseModel):
+    """Input model for creating a friction."""
+
+    title: str
+    description: str = ""
+    category: str = ""
+    severity: int = Field(default=3, ge=1, le=5)
+    frequency: int = Field(default=3, ge=1, le=5)
+    blast_radius: int = Field(default=3, ge=1, le=5)
+    owner_role: str = ""
+    affected_stakeholders: str = ""  # Comma-separated for form input
+    related_initiatives: str = ""  # Comma-separated for form input
+    signals: str = ""  # Newline-separated for form input
+    countermeasures: str = ""  # Newline-separated for form input
+    notes: str = ""
 
 
 class WeeklySimulation(BaseModel):

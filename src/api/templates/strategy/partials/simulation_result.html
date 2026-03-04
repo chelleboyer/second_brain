@@ -1,14 +1,61 @@
 <div class="strat-sim">
     <!-- Strategic Move -->
-    <div class="strat-sim__move">{{ latest_simulation.strategic_move }}</div>
+    <div class="strat-sim__move">
+        {{ latest_simulation.strategic_move }}
+        <div class="strat-sim__actions" style="display:flex;gap:0.35rem;margin-top:0.4rem;">
+            <form hx-post="/strategy/action/capture-entry"
+                  hx-target="closest .strat-sim__actions"
+                  hx-swap="afterend"
+                  style="margin:0;">
+                <input type="hidden" name="text" value="{{ latest_simulation.strategic_move }}">
+                <input type="hidden" name="entry_type" value="strategy">
+                <input type="hidden" name="source_context" value="Weekly simulation {{ latest_simulation.week_start }}">
+                <button type="submit" class="btn btn-ghost btn-xs" title="Capture as brain entry">💾 Capture</button>
+            </form>
+            <form hx-post="/strategy/action/create-initiative"
+                  hx-target="closest .strat-sim__actions"
+                  hx-swap="afterend"
+                  style="margin:0;">
+                <input type="hidden" name="title" value="{{ latest_simulation.strategic_move[:80] }}">
+                <input type="hidden" name="description" value="{{ latest_simulation.strategic_move }}">
+                <input type="hidden" name="source_context" value="Weekly simulation {{ latest_simulation.week_start }}">
+                <button type="submit" class="btn btn-ghost btn-xs" title="Create initiative from this">♟️ Initiative</button>
+            </form>
+        </div>
+    </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">
         <!-- Maintenance -->
         <div class="strat-sim__section">
-            <div class="strat-sim__label">🔧 Maintenance</div>
+            <div class="strat-sim__label">
+                🔧 Maintenance
+                {% if latest_simulation.maintenance_tasks %}
+                <form hx-post="/strategy/action/capture-tasks"
+                      hx-target="closest .strat-sim__section"
+                      hx-swap="beforeend"
+                      style="margin:0;display:inline;">
+                    <input type="hidden" name="tasks_json" value="{{ latest_simulation.maintenance_tasks | tojson }}">
+                    <input type="hidden" name="source_context" value="Maintenance — {{ latest_simulation.week_start }}">
+                    <button type="submit" class="btn btn-ghost btn-xs" title="Capture all as tasks" style="font-size:0.6rem;padding:0.1rem 0.3rem;">📋 All</button>
+                </form>
+                {% endif %}
+            </div>
             <ul class="strat-sim__list">
                 {% for task in latest_simulation.maintenance_tasks %}
-                <li>{{ task }}</li>
+                <li>
+                    {{ task }}
+                    <span class="strat-sim__item-actions" style="display:inline-flex;gap:0.2rem;margin-left:0.25rem;">
+                        <form hx-post="/strategy/action/capture-entry"
+                              hx-target="closest li"
+                              hx-swap="afterend"
+                              style="margin:0;display:inline;">
+                            <input type="hidden" name="text" value="{{ task }}">
+                            <input type="hidden" name="entry_type" value="task">
+                            <input type="hidden" name="source_context" value="Maintenance — {{ latest_simulation.week_start }}">
+                            <button type="submit" class="btn-inline-action" title="Capture as task">💾</button>
+                        </form>
+                    </span>
+                </li>
                 {% else %}
                 <li style="color:var(--text-muted);list-style:none;">None</li>
                 {% endfor %}
@@ -16,10 +63,44 @@
         </div>
         <!-- Position Building -->
         <div class="strat-sim__section">
-            <div class="strat-sim__label">🏗️ Build</div>
+            <div class="strat-sim__label">
+                🏗️ Build
+                {% if latest_simulation.position_building %}
+                <form hx-post="/strategy/action/capture-tasks"
+                      hx-target="closest .strat-sim__section"
+                      hx-swap="beforeend"
+                      style="margin:0;display:inline;">
+                    <input type="hidden" name="tasks_json" value="{{ latest_simulation.position_building | tojson }}">
+                    <input type="hidden" name="source_context" value="Position building — {{ latest_simulation.week_start }}">
+                    <button type="submit" class="btn btn-ghost btn-xs" title="Capture all as tasks" style="font-size:0.6rem;padding:0.1rem 0.3rem;">📋 All</button>
+                </form>
+                {% endif %}
+            </div>
             <ul class="strat-sim__list">
                 {% for move in latest_simulation.position_building %}
-                <li>{{ move }}</li>
+                <li>
+                    {{ move }}
+                    <span class="strat-sim__item-actions" style="display:inline-flex;gap:0.2rem;margin-left:0.25rem;">
+                        <form hx-post="/strategy/action/capture-entry"
+                              hx-target="closest li"
+                              hx-swap="afterend"
+                              style="margin:0;display:inline;">
+                            <input type="hidden" name="text" value="{{ move }}">
+                            <input type="hidden" name="entry_type" value="strategy">
+                            <input type="hidden" name="source_context" value="Position building — {{ latest_simulation.week_start }}">
+                            <button type="submit" class="btn-inline-action" title="Capture as entry">💾</button>
+                        </form>
+                        <form hx-post="/strategy/action/create-initiative"
+                              hx-target="closest li"
+                              hx-swap="afterend"
+                              style="margin:0;display:inline;">
+                            <input type="hidden" name="title" value="{{ move[:80] }}">
+                            <input type="hidden" name="description" value="{{ move }}">
+                            <input type="hidden" name="source_context" value="Position building — {{ latest_simulation.week_start }}">
+                            <button type="submit" class="btn-inline-action" title="Create initiative">♟️</button>
+                        </form>
+                    </span>
+                </li>
                 {% else %}
                 <li style="color:var(--text-muted);list-style:none;">None</li>
                 {% endfor %}
@@ -50,8 +131,29 @@
     </div>
     {% endif %}
 
-    <div style="font-size:0.65rem;color:var(--text-muted);margin-top:0.5rem;">
-        Week of {{ latest_simulation.week_start }} · {{ relative_time(latest_simulation.created_at) }}
+    <!-- Full-simulation actions -->
+    <div style="display:flex;gap:0.35rem;align-items:center;margin-top:0.5rem;border-top:1px solid var(--border);padding-top:0.5rem;">
+        <form hx-post="/strategy/action/capture-analysis"
+              hx-target="#sim-action-result"
+              hx-swap="innerHTML"
+              style="margin:0;">
+            <input type="hidden" name="simulation_id" value="{{ latest_simulation.id }}">
+            <button type="submit" class="btn btn-ghost btn-xs">📋 Save Full Analysis</button>
+        </form>
+        {% if latest_simulation.maintenance_tasks or latest_simulation.position_building %}
+        <form hx-post="/strategy/action/capture-tasks"
+              hx-target="#sim-action-result"
+              hx-swap="innerHTML"
+              style="margin:0;">
+            <input type="hidden" name="tasks_json" value="{{ (latest_simulation.maintenance_tasks + latest_simulation.position_building) | tojson }}">
+            <input type="hidden" name="source_context" value="All tasks — {{ latest_simulation.week_start }}">
+            <button type="submit" class="btn btn-ghost btn-xs">✅ Capture All Tasks</button>
+        </form>
+        {% endif %}
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-left:auto;">
+            Week of {{ latest_simulation.week_start }} · {{ relative_time(latest_simulation.created_at) }}
+        </div>
     </div>
+    <div id="sim-action-result"></div>
 </div>
 

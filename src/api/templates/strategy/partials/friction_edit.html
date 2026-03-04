@@ -1,0 +1,89 @@
+<div class="card" style="padding: 1rem; margin-bottom: 0.75rem;" id="friction-{{ friction.id }}">
+    <form hx-put="/strategy/friction/{{ friction.id }}"
+          hx-target="#friction-{{ friction.id }}"
+          hx-swap="outerHTML">
+
+        <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.75rem;">✏️ Edit Friction</div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Title</label>
+            <input type="text" name="title" value="{{ friction.title }}" required
+                   class="input" style="width:100%;font-size:0.85rem;">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Description</label>
+            <textarea name="description" rows="2"
+                      class="input" style="width:100%;font-size:0.85rem;resize:vertical;">{{ friction.description or '' }}</textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Category</label>
+                <input type="text" name="category" value="{{ friction.category or '' }}"
+                       class="input" style="width:100%;font-size:0.85rem;" placeholder="e.g. Operations">
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Owner Role</label>
+                <input type="text" name="owner_role" value="{{ friction.owner_role or '' }}"
+                       class="input" style="width:100%;font-size:0.85rem;" placeholder="e.g. IT / Ops">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Severity (1–5)</label>
+                <input type="number" name="severity" value="{{ friction.severity }}" min="1" max="5"
+                       class="input" style="width:100%;text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Frequency (1–5)</label>
+                <input type="number" name="frequency" value="{{ friction.frequency }}" min="1" max="5"
+                       class="input" style="width:100%;text-align:center;font-size:0.85rem;">
+            </div>
+            <div style="text-align: center;">
+                <label style="font-size: 0.7rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Blast Radius (1–5)</label>
+                <input type="number" name="blast_radius" value="{{ friction.blast_radius }}" min="1" max="5"
+                       class="input" style="width:100%;text-align:center;font-size:0.85rem;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Affected Stakeholders (comma-separated)</label>
+            <input type="text" name="affected_stakeholders" value="{{ friction.affected_stakeholders | join(', ') }}"
+                   class="input" style="width:100%;font-size:0.85rem;">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Related Initiatives (comma-separated)</label>
+            <input type="text" name="related_initiatives" value="{{ friction.related_initiatives | join(', ') }}"
+                   class="input" style="width:100%;font-size:0.85rem;">
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Signals (one per line)</label>
+            <textarea name="signals" rows="3"
+                      class="input" style="width:100%;font-size:0.85rem;resize:vertical;">{{ friction.signals | join('\n') }}</textarea>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Countermeasures (one per line)</label>
+            <textarea name="countermeasures" rows="3"
+                      class="input" style="width:100%;font-size:0.85rem;resize:vertical;">{{ friction.countermeasures | join('\n') }}</textarea>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: 600; display: block; margin-bottom: 0.15rem;">Notes</label>
+            <textarea name="notes" rows="2"
+                      class="input" style="width:100%;font-size:0.85rem;resize:vertical;">{{ friction.notes or '' }}</textarea>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+            <button type="submit" class="btn btn-primary" style="font-size: 0.8rem;">💾 Save</button>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.8rem;"
+                    hx-get="/strategy/friction/{{ friction.id }}/card"
+                    hx-target="#friction-{{ friction.id }}"
+                    hx-swap="outerHTML">Cancel</button>
+        </div>
+    </form>
+</div>

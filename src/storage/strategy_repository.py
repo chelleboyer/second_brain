@@ -13,6 +13,7 @@ from src.models.enums import (
     VisibilityLevel,
 )
 from src.models.strategy import (
+    Friction,
     InfluenceDelta,
     Initiative,
     InitiativeLink,
@@ -429,17 +430,22 @@ class StrategyRepository:
                 """
                 INSERT OR REPLACE INTO influence_deltas (
                     id, week_start, stakeholder_id, stakeholder_name,
-                    advice_sought, decision_changed,
-                    framing_adopted, consultation_count, notes,
+                    advice_sought, advice_detail,
+                    decision_changed, decision_detail,
+                    framing_adopted, framing_detail,
+                    consultation_count, notes,
                     delta_score, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(delta.id), delta.week_start,
                     delta.stakeholder_id, delta.stakeholder_name,
                     1 if delta.advice_sought else 0,
+                    delta.advice_detail,
                     1 if delta.decision_changed else 0,
+                    delta.decision_detail,
                     1 if delta.framing_adopted else 0,
+                    delta.framing_detail,
                     delta.consultation_count, delta.notes,
                     delta.delta_score,
                     delta.created_at.isoformat(),
@@ -479,14 +485,18 @@ class StrategyRepository:
 
     @staticmethod
     def _row_to_influence_delta(row) -> InfluenceDelta:
+        keys = row.keys()
         return InfluenceDelta(
             id=UUID(row["id"]),
             week_start=row["week_start"],
-            stakeholder_id=row["stakeholder_id"] if "stakeholder_id" in row.keys() else None,
-            stakeholder_name=row["stakeholder_name"] if "stakeholder_name" in row.keys() else None,
+            stakeholder_id=row["stakeholder_id"] if "stakeholder_id" in keys else None,
+            stakeholder_name=row["stakeholder_name"] if "stakeholder_name" in keys else None,
             advice_sought=bool(row["advice_sought"]),
+            advice_detail=row["advice_detail"] if "advice_detail" in keys else "",
             decision_changed=bool(row["decision_changed"]),
+            decision_detail=row["decision_detail"] if "decision_detail" in keys else "",
             framing_adopted=bool(row["framing_adopted"]),
+            framing_detail=row["framing_detail"] if "framing_detail" in keys else "",
             consultation_count=row["consultation_count"],
             notes=row["notes"],
             delta_score=row["delta_score"],
@@ -555,6 +565,93 @@ class StrategyRepository:
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
+    # ── Frictions ────────────────────────────────────────────────
+
+    async def save_friction(self, friction: Friction) -> Friction:
+        """Insert or replace a friction."""
+        async with self.db.get_connection() as conn:
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO frictions (
+                    id, title, description, category,
+                    severity, frequency, blast_radius,
+                    owner_role, affected_stakeholders,
+                    related_initiatives, signals, countermeasures,
+                    notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(friction.id), friction.title, friction.description,
+                    friction.category, friction.severity, friction.frequency,
+                    friction.blast_radius, friction.owner_role,
+                    json.dumps(friction.affected_stakeholders),
+                    json.dumps(friction.related_initiatives),
+                    json.dumps(friction.signals),
+                    json.dumps(friction.countermeasures),
+                    friction.notes,
+                    friction.created_at.isoformat(),
+                    friction.updated_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+            log.info("friction_saved", id=str(friction.id), title=friction.title)
+        return friction
+
+    async def get_friction(self, friction_id: UUID) -> Friction | None:
+        """Retrieve a friction by ID."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "SELECT * FROM frictions WHERE id = ?", (str(friction_id),)
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+            return self._row_to_friction(row)
+
+    async def list_frictions(
+        self, category: str | None = None,
+    ) -> list[Friction]:
+        """List frictions with optional category filter."""
+        if category:
+            query = "SELECT * FROM frictions WHERE category = ? ORDER BY severity DESC, frequency DESC"
+            params: list = [category]
+        else:
+            query = "SELECT * FROM frictions ORDER BY severity DESC, frequency DESC"
+            params = []
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(query, params)
+            rows = await cursor.fetchall()
+            return [self._row_to_friction(r) for r in rows]
+
+    async def delete_friction(self, friction_id: UUID) -> bool:
+        """Delete a friction by ID. Returns True if deleted."""
+        async with self.db.get_connection() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM frictions WHERE id = ?", (str(friction_id),)
+            )
+            await conn.commit()
+            return cursor.rowcount > 0
+
+    @staticmethod
+    def _row_to_friction(row) -> Friction:
+        return Friction(
+            id=UUID(row["id"]),
+            title=row["title"],
+            description=row["description"],
+            category=row["category"],
+            severity=row["severity"],
+            frequency=row["frequency"],
+            blast_radius=row["blast_radius"],
+            owner_role=row["owner_role"],
+            affected_stakeholders=json.loads(row["affected_stakeholders"]),
+            related_initiatives=json.loads(row["related_initiatives"]),
+            signals=json.loads(row["signals"]),
+            countermeasures=json.loads(row["countermeasures"]),
+            notes=row["notes"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
     # ── Aggregate Queries ────────────────────────────────────────
 
     async def get_strategy_summary(self) -> dict:
@@ -583,6 +680,14 @@ class StrategyRepository:
             row = await cursor.fetchone()
             stakeholder_count = row["cnt"] if row else 0
 
+            # Friction count
+            try:
+                cursor = await conn.execute("SELECT COUNT(*) as cnt FROM frictions")
+                row = await cursor.fetchone()
+                friction_count = row["cnt"] if row else 0
+            except Exception:
+                friction_count = 0
+
             # Influence trend (last 4 weeks)
             cursor = await conn.execute(
                 "SELECT delta_score FROM influence_deltas "
@@ -603,6 +708,7 @@ class StrategyRepository:
             "initiative_counts": initiative_counts,
             "asset_counts": asset_counts,
             "stakeholder_count": stakeholder_count,
+            "friction_count": friction_count,
             "recent_influence_deltas": recent_deltas,
             "visibility_distribution": visibility_dist,
         }

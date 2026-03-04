@@ -46,8 +46,11 @@ class InfluenceTracker:
             stakeholder_id=create.stakeholder_id,
             stakeholder_name=stakeholder_name,
             advice_sought=create.advice_sought,
+            advice_detail=create.advice_detail,
             decision_changed=create.decision_changed,
+            decision_detail=create.decision_detail,
             framing_adopted=create.framing_adopted,
+            framing_detail=create.framing_detail,
             consultation_count=create.consultation_count,
             notes=create.notes,
         )
@@ -129,6 +132,32 @@ class InfluenceTracker:
         framing_count = sum(1 for d in deltas if d.framing_adopted)
         total_consults = sum(d.consultation_count for d in deltas)
 
+        # Collect concrete details for each signal type
+        advice_details = [
+            {
+                "week": d.week_start,
+                "detail": d.advice_detail or d.notes,
+                "stakeholder": d.stakeholder_name or "Unattributed",
+            }
+            for d in deltas if d.advice_sought and (d.advice_detail or d.notes)
+        ]
+        decision_details = [
+            {
+                "week": d.week_start,
+                "detail": d.decision_detail or d.notes,
+                "stakeholder": d.stakeholder_name or "Unattributed",
+            }
+            for d in deltas if d.decision_changed and (d.decision_detail or d.notes)
+        ]
+        framing_details = [
+            {
+                "week": d.week_start,
+                "detail": d.framing_detail or d.notes,
+                "stakeholder": d.stakeholder_name or "Unattributed",
+            }
+            for d in deltas if d.framing_adopted and (d.framing_detail or d.notes)
+        ]
+
         signal_breakdown = {
             "advice_sought": advice_count,
             "decision_changed": decision_count,
@@ -137,6 +166,9 @@ class InfluenceTracker:
             "advice_pct": round(advice_count / len(deltas) * 100) if deltas else 0,
             "decision_pct": round(decision_count / len(deltas) * 100) if deltas else 0,
             "framing_pct": round(framing_count / len(deltas) * 100) if deltas else 0,
+            "advice_details": advice_details,
+            "decision_details": decision_details,
+            "framing_details": framing_details,
         }
 
         # ── Streaks (consecutive weeks scoring >= 5) ──

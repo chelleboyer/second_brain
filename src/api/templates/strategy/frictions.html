@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block page_title %} — Frictions{% endblock %}
+{% block nav_strategy %}active{% endblock %}
+
+{% block content %}
+<div class="strat-dash">
+
+    <!-- Hero -->
+    <header class="strat-hero">
+        <div class="strat-hero__left">
+            <div style="font-size:0.8rem;margin-bottom:0.15rem;">
+                <a href="/strategy" style="color:var(--text-muted);text-decoration:none;">♟️ Strategy</a>
+                <span style="color:var(--text-muted);"> / </span>
+                <span>Frictions</span>
+            </div>
+            <h1 class="strat-hero__title">🔥 Friction Log</h1>
+        </div>
+        <div class="strat-hero__nav">
+            <div class="strat-chip">
+                <span class="strat-chip__val">{{ frictions | length }}</span>
+                <span class="strat-chip__label">Tracked</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Category Filters -->
+    <div class="strat-chips" style="margin-bottom:var(--sp-5);">
+        <a href="/strategy/frictions"
+           class="strat-chip {% if not active_category %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">All</a>
+        {% for cat in categories %}
+        <a href="/strategy/frictions?category={{ cat | urlencode }}"
+           class="strat-chip {% if active_category == cat %}strat-chip--active{% endif %}"
+           style="text-decoration:none;">{{ cat }}</a>
+        {% endfor %}
+    </div>
+
+    <div class="strat-grid strat-grid--2">
+
+        <!-- Friction List -->
+        <div id="friction-list" class="strat-list">
+            {% for friction in frictions %}
+                {% include "strategy/partials/friction_card.html" %}
+            {% else %}
+                <div class="strat-empty" style="padding:2rem;">
+                    <div style="font-size:1.5rem;opacity:0.3;margin-bottom:0.5rem;">🔥</div>
+                    <p>No frictions tracked yet. Add one using the form to start mapping organizational drag.</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Create Friction Form -->
+        <div class="strat-tile" style="position:sticky;top:4rem;align-self:start;">
+            <div class="strat-tile__head">
+                <h2 class="strat-tile__title">➕ Log New Friction</h2>
+            </div>
+            <div class="strat-tile__body">
+                <form hx-post="/strategy/frictions"
+                      hx-target="#friction-list"
+                      hx-swap="afterbegin">
+
+                    <input type="text" name="title" placeholder="Friction title" required
+                           class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;">
+
+                    <textarea name="description" placeholder="Description — what happens and why it hurts" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Category</label>
+                            <input type="text" name="category" placeholder="e.g. Operations"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Owner Role</label>
+                            <input type="text" name="owner_role" placeholder="e.g. IT / Ops"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;margin-bottom:0.5rem;">
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Severity (1–5)</label>
+                            <input type="number" name="severity" value="3" min="1" max="5"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Frequency (1–5)</label>
+                            <input type="number" name="frequency" value="3" min="1" max="5"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.7rem;font-weight:600;display:block;margin-bottom:0.15rem;">Blast Radius (1–5)</label>
+                            <input type="number" name="blast_radius" value="3" min="1" max="5"
+                                   class="input" style="width:100%;font-size:0.85rem;">
+                        </div>
+                    </div>
+
+                    <input type="text" name="affected_stakeholders" placeholder="Affected stakeholders (comma-separated)"
+                           class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;">
+
+                    <input type="text" name="related_initiatives" placeholder="Related initiatives (comma-separated)"
+                           class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;">
+
+                    <textarea name="signals" placeholder="Signals — one per line&#10;e.g. Managers bypass the system&#10;Frequent vendor disputes" rows="3"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
+
+                    <textarea name="countermeasures" placeholder="Countermeasures — one per line&#10;e.g. Vendor archetypes&#10;Exception workflow" rows="3"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
+
+                    <textarea name="notes" placeholder="Notes" rows="2"
+                              class="input" style="width:100%;margin-bottom:0.5rem;font-size:0.85rem;resize:vertical;"></textarea>
+
+                    <button type="submit" class="btn btn-primary" style="width:100%;">Log Friction</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

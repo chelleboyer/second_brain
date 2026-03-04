@@ -1881,6 +1881,146 @@ async def asset_card(request: Request, asset_id: str) -> HTMLResponse:
     )
 
 
+# ── Frictions ────────────────────────────────────────────────────
+
+@router.get("/strategy/frictions", response_class=HTMLResponse)
+async def frictions_page(
+    request: Request,
+    category: str = Query(default=""),
+) -> HTMLResponse:
+    """Render the frictions browser."""
+    cat_filter = category if category else None
+    frictions = await app_state.strategy_repo.list_frictions(category=cat_filter)
+    # Collect unique categories for filter chips
+    all_frictions = await app_state.strategy_repo.list_frictions()
+    categories = sorted({f.category for f in all_frictions if f.category})
+    return templates.TemplateResponse(
+        "strategy/frictions.html",
+        _shared_ctx(
+            request,
+            frictions=frictions,
+            categories=categories,
+            active_category=category,
+        ),
+    )
+
+
+@router.post("/strategy/frictions", response_class=HTMLResponse)
+async def create_friction(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    category: str = Form(default=""),
+    severity: int = Form(default=3),
+    frequency: int = Form(default=3),
+    blast_radius: int = Form(default=3),
+    owner_role: str = Form(default=""),
+    affected_stakeholders: str = Form(default=""),
+    related_initiatives: str = Form(default=""),
+    signals: str = Form(default=""),
+    countermeasures: str = Form(default=""),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Create a new friction."""
+    from src.models.strategy import Friction
+
+    friction = Friction(
+        title=title,
+        description=description,
+        category=category,
+        severity=severity,
+        frequency=frequency,
+        blast_radius=blast_radius,
+        owner_role=owner_role,
+        affected_stakeholders=[s.strip() for s in affected_stakeholders.split(",") if s.strip()],
+        related_initiatives=[s.strip() for s in related_initiatives.split(",") if s.strip()],
+        signals=[s.strip() for s in signals.strip().splitlines() if s.strip()],
+        countermeasures=[s.strip() for s in countermeasures.strip().splitlines() if s.strip()],
+        notes=notes,
+    )
+    saved = await app_state.strategy_repo.save_friction(friction)
+
+    return templates.TemplateResponse(
+        "strategy/partials/friction_card.html",
+        _shared_ctx(request, friction=saved),
+    )
+
+
+@router.delete("/strategy/friction/{friction_id}", response_class=HTMLResponse)
+async def delete_friction(request: Request, friction_id: str) -> HTMLResponse:
+    """Delete a friction."""
+    await app_state.strategy_repo.delete_friction(UUID(friction_id))
+    return HTMLResponse("")
+
+
+@router.get("/strategy/friction/{friction_id}/edit", response_class=HTMLResponse)
+async def edit_friction_form(request: Request, friction_id: str) -> HTMLResponse:
+    """Return the inline edit form for a friction."""
+    friction = await app_state.strategy_repo.get_friction(UUID(friction_id))
+    if friction is None:
+        return HTMLResponse("<p>Friction not found</p>", status_code=404)
+    return templates.TemplateResponse(
+        "strategy/partials/friction_edit.html",
+        _shared_ctx(request, friction=friction),
+    )
+
+
+@router.put("/strategy/friction/{friction_id}", response_class=HTMLResponse)
+async def update_friction(
+    request: Request,
+    friction_id: str,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    category: str = Form(default=""),
+    severity: int = Form(default=3),
+    frequency: int = Form(default=3),
+    blast_radius: int = Form(default=3),
+    owner_role: str = Form(default=""),
+    affected_stakeholders: str = Form(default=""),
+    related_initiatives: str = Form(default=""),
+    signals: str = Form(default=""),
+    countermeasures: str = Form(default=""),
+    notes: str = Form(default=""),
+) -> HTMLResponse:
+    """Update an existing friction."""
+    existing = await app_state.strategy_repo.get_friction(UUID(friction_id))
+    if existing is None:
+        return HTMLResponse("<p>Friction not found</p>", status_code=404)
+
+    existing.title = title
+    existing.description = description
+    existing.category = category
+    existing.severity = severity
+    existing.frequency = frequency
+    existing.blast_radius = blast_radius
+    existing.owner_role = owner_role
+    existing.affected_stakeholders = [s.strip() for s in affected_stakeholders.split(",") if s.strip()]
+    existing.related_initiatives = [s.strip() for s in related_initiatives.split(",") if s.strip()]
+    existing.signals = [s.strip() for s in signals.strip().splitlines() if s.strip()]
+    existing.countermeasures = [s.strip() for s in countermeasures.strip().splitlines() if s.strip()]
+    existing.notes = notes
+    existing.updated_at = datetime.now(timezone.utc)
+
+    await app_state.strategy_repo.save_friction(existing)
+
+    return templates.TemplateResponse(
+        "strategy/partials/friction_card.html",
+        _shared_ctx(request, friction=existing),
+    )
+
+
+@router.get("/strategy/friction/{friction_id}/card", response_class=HTMLResponse)
+async def friction_card(request: Request, friction_id: str) -> HTMLResponse:
+    """Return the friction card partial (used by edit cancel)."""
+    friction = await app_state.strategy_repo.get_friction(UUID(friction_id))
+    if friction is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(
+        "strategy/partials/friction_card.html",
+        _shared_ctx(request, friction=friction),
+    )
+
+
 # ── Influence Tracking ───────────────────────────────────────────
 
 @router.post("/strategy/influence", response_class=HTMLResponse)
@@ -1889,8 +2029,11 @@ async def log_influence(
     week_start: str = Form(...),
     stakeholder_id: str = Form(default=""),
     advice_sought: bool = Form(default=False),
+    advice_detail: str = Form(default=""),
     decision_changed: bool = Form(default=False),
+    decision_detail: str = Form(default=""),
     framing_adopted: bool = Form(default=False),
+    framing_detail: str = Form(default=""),
     consultation_count: int = Form(default=0),
     notes: str = Form(default=""),
 ) -> HTMLResponse:
@@ -1901,8 +2044,11 @@ async def log_influence(
         week_start=week_start,
         stakeholder_id=stakeholder_id if stakeholder_id else None,
         advice_sought=advice_sought,
+        advice_detail=advice_detail.strip(),
         decision_changed=decision_changed,
+        decision_detail=decision_detail.strip(),
         framing_adopted=framing_adopted,
+        framing_detail=framing_detail.strip(),
         consultation_count=consultation_count,
         notes=notes,
     )
@@ -1934,6 +2080,161 @@ async def run_simulation(
     return templates.TemplateResponse(
         "strategy/partials/simulation_result.html",
         _shared_ctx(request, latest_simulation=simulation),
+    )
+
+
+# ── Strategy Actions (Simulation → Brain Entries / Initiatives) ──
+
+@router.post("/strategy/action/capture-entry", response_class=HTMLResponse)
+async def strategy_capture_entry(
+    request: Request,
+    text: str = Form(...),
+    entry_type: str = Form(default="strategy"),
+    source_context: str = Form(default=""),
+) -> HTMLResponse:
+    """Capture a strategy simulation item as a brain entry.
+
+    Runs the full capture pipeline (classify, embed, store).
+    The source_context provides provenance (e.g. 'Weekly simulation 2026-03-02').
+    """
+    full_text = text
+    if source_context:
+        full_text = f"[Strategy: {source_context}] {text}"
+
+    entry = await app_state.pipeline.capture_manual(full_text, author_name="Strategy Engine")
+
+    return HTMLResponse(
+        f'<div class="strat-action-result" style="padding:0.5rem;background:rgba(16,185,129,0.12);'
+        f'border-radius:var(--radius-md);font-size:0.8rem;margin-top:0.25rem;">'
+        f'✅ Captured as <a href="/entry/{entry.id}" style="color:var(--green);font-weight:600;">'
+        f'{entry.title}</a>'
+        f' <span class="type-chip type-chip-{entry.type.value}" style="font-size:0.65rem;">'
+        f'{entry.type.value}</span>'
+        f'</div>'
+    )
+
+
+@router.post("/strategy/action/create-initiative", response_class=HTMLResponse)
+async def strategy_create_initiative(
+    request: Request,
+    title: str = Form(...),
+    description: str = Form(default=""),
+    source_context: str = Form(default=""),
+) -> HTMLResponse:
+    """Create a new initiative from a simulation item.
+
+    Pre-populates with sensible defaults (scored type, no scores yet).
+    """
+    from src.models.strategy import InitiativeCreate
+
+    notes = f"Created from strategy simulation"
+    if source_context:
+        notes = f"Created from: {source_context}"
+
+    create = InitiativeCreate(
+        title=title,
+        description=description,
+        notes=notes,
+    )
+    initiative = await app_state.evaluation_engine.evaluate_initiative(create)
+    log.info("initiative_from_simulation", id=str(initiative.id), title=title)
+
+    return HTMLResponse(
+        f'<div class="strat-action-result" style="padding:0.5rem;background:rgba(79,142,247,0.12);'
+        f'border-radius:var(--radius-md);font-size:0.8rem;margin-top:0.25rem;">'
+        f'✅ Initiative created: <a href="/strategy/initiative/{initiative.id}" '
+        f'style="color:var(--accent);font-weight:600;">{initiative.title}</a>'
+        f' <span style="color:var(--text-muted);">({initiative.scores.total}/25)</span>'
+        f'</div>'
+    )
+
+
+@router.post("/strategy/action/capture-tasks", response_class=HTMLResponse)
+async def strategy_capture_tasks(
+    request: Request,
+    tasks_json: str = Form(...),
+    source_context: str = Form(default=""),
+) -> HTMLResponse:
+    """Batch-capture multiple simulation tasks as brain entries.
+
+    Expects tasks_json as a JSON array of strings.
+    """
+    import json as _json
+    try:
+        tasks = _json.loads(tasks_json)
+    except Exception:
+        return HTMLResponse(
+            '<div style="color:var(--red);font-size:0.8rem;">Invalid task data.</div>',
+            status_code=400,
+        )
+
+    captured = []
+    for task_text in tasks:
+        if not task_text or not task_text.strip():
+            continue
+        full = f"[Task from strategy: {source_context}] {task_text}" if source_context else task_text
+        entry = await app_state.pipeline.capture_manual(full, author_name="Strategy Engine")
+        captured.append(entry)
+
+    items = "".join(
+        f'<div style="padding:0.15rem 0;">'
+        f'✅ <a href="/entry/{e.id}" style="color:var(--green);">{e.title}</a> '
+        f'<span class="type-chip type-chip-{e.type.value}" style="font-size:0.6rem;">{e.type.value}</span>'
+        f'</div>'
+        for e in captured
+    )
+
+    return HTMLResponse(
+        f'<div class="strat-action-result" style="padding:0.5rem;background:rgba(16,185,129,0.12);'
+        f'border-radius:var(--radius-md);font-size:0.8rem;margin-top:0.25rem;">'
+        f'<div style="font-weight:600;margin-bottom:0.25rem;">📋 {len(captured)} tasks captured</div>'
+        f'{items}'
+        f'</div>'
+    )
+
+
+@router.post("/strategy/action/capture-analysis", response_class=HTMLResponse)
+async def strategy_capture_analysis(
+    request: Request,
+    simulation_id: str = Form(...),
+) -> HTMLResponse:
+    """Capture the full simulation analysis as a brain entry."""
+    sim = await app_state.strategy_repo.get_latest_simulation()
+    if not sim or str(sim.id) != simulation_id:
+        # Try to find it by listing recent ones
+        sims = await app_state.strategy_repo.list_simulations(limit=5)
+        sim = next((s for s in sims if str(s.id) == simulation_id), None)
+
+    if not sim:
+        return HTMLResponse(
+            '<div style="color:var(--red);font-size:0.8rem;">Simulation not found.</div>',
+            status_code=404,
+        )
+
+    # Build a rich text capture from the simulation
+    parts = [f"Weekly Strategic Analysis — Week of {sim.week_start}"]
+    parts.append(f"\nStrategic Move: {sim.strategic_move}")
+    if sim.maintenance_tasks:
+        parts.append("\nMaintenance Tasks:")
+        for t in sim.maintenance_tasks:
+            parts.append(f"- {t}")
+    if sim.position_building:
+        parts.append("\nPosition Building:")
+        for p in sim.position_building:
+            parts.append(f"- {p}")
+    parts.append(f"\nInfluence: {sim.influence_trend} | Optionality: {sim.optionality_trend}")
+    if sim.raw_analysis:
+        parts.append(f"\nFull Analysis:\n{sim.raw_analysis}")
+
+    full_text = "\n".join(parts)
+    entry = await app_state.pipeline.capture_manual(full_text, author_name="Strategy Engine")
+
+    return HTMLResponse(
+        f'<div class="strat-action-result" style="padding:0.5rem;background:rgba(167,139,250,0.12);'
+        f'border-radius:var(--radius-md);font-size:0.8rem;margin-top:0.25rem;">'
+        f'✅ Full analysis saved: <a href="/entry/{entry.id}" '
+        f'style="color:var(--purple);font-weight:600;">{entry.title}</a>'
+        f'</div>'
     )
 
 
@@ -1995,7 +2296,8 @@ async def load_example_dataset(
         f'<div style="padding:0.75rem;background:rgba(16,185,129,0.15);border-radius:6px;font-size:0.85rem;">'
         f'✅ Loaded <strong>{label}</strong> dataset: '
         f'{counts["stakeholders"]} stakeholders, {counts["initiatives"]} initiatives, '
-        f'{counts["assets"]} assets, {counts["influence_deltas"]} influence records. '
+        f'{counts["assets"]} assets, {counts["influence_deltas"]} influence records, '
+        f'{counts["frictions"]} frictions. '
         f'<a href="/strategy" style="color:var(--color-emerald);font-weight:600;">Refresh to see results →</a>'
         f'</div>'
     )

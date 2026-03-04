@@ -10,10 +10,52 @@
                 <span class="type-chip chip-gold" style="font-size: 0.68rem;">{{ s.suggestion_type }}</span>
                 {{ s.message }}
             </div>
-            {% if s.entity_name %}
-                <div class="entry-meta">
-                    🏗️ {{ s.entity_name }}
+
+            {% if s.related_entries %}
+            <div style="margin-top: 0.35rem; padding-left: 0.5rem;">
+                {% for re in s.related_entries[:3] %}
+                <div style="font-size: 0.78rem; padding: 0.15rem 0;">
+                    <a href="/entry/{{ re.id }}" style="color: var(--accent);">{{ re.title }}</a>
+                    <span class="type-chip type-chip-{{ re.type.value }}" style="font-size: 0.6rem;">{{ re.type.value }}</span>
                 </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if s.related_entities %}
+            <div style="margin-top: 0.35rem; padding-left: 0.5rem;">
+                {% for ent in s.related_entities[:3] %}
+                <div style="font-size: 0.78rem; padding: 0.15rem 0;">
+                    <a href="/graph" style="color: var(--purple);">🏗️ {{ ent.name }}</a>
+                    <span style="font-size: 0.65rem; color: var(--text-muted);">({{ ent.entity_type.value }})</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if s.action %}
+            <div style="margin-top: 0.35rem;" id="suggestion-action-{{ loop.index }}">
+                {% if s.suggestion_type == 'initiative_promotion' and s.related_entities %}
+                <form hx-post="/strategy/action/create-initiative"
+                      hx-target="#suggestion-action-{{ loop.index }}"
+                      hx-swap="innerHTML"
+                      style="margin:0;">
+                    <input type="hidden" name="title" value="{{ s.related_entities[0].name }}">
+                    <input type="hidden" name="description" value="{{ s.message }}">
+                    <input type="hidden" name="source_context" value="Suggestion for entry {{ entry.title[:40] }}">
+                    <button type="submit" class="btn btn-ghost btn-xs" style="color:var(--accent);">♟️ Create Initiative</button>
+                </form>
+                {% elif s.suggestion_type == 'proactive' %}
+                <form hx-post="/strategy/action/capture-entry"
+                      hx-target="#suggestion-action-{{ loop.index }}"
+                      hx-swap="innerHTML"
+                      style="margin:0;">
+                    <input type="hidden" name="text" value="{{ s.message }}">
+                    <input type="hidden" name="source_context" value="Suggestion for entry {{ entry.title[:40] }}">
+                    <button type="submit" class="btn btn-ghost btn-xs" style="color:var(--green);">💾 Capture</button>
+                </form>
+                {% endif %}
+            </div>
             {% endif %}
         </div>
     {% endfor %}
